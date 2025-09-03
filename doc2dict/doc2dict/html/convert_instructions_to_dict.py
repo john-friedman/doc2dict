@@ -241,7 +241,7 @@ def determine_levels(instructions_list, mapping_dict=None):
                 regex_tuples = [(item[0][1], item[0][0], item[1]) for item in mapping_dict.items()]
                 
                 for regex, header_class, hierarchy_level in regex_tuples:
-                    match = re.match(regex, text)
+                    match = re.match(regex, text.strip())
                     if match:
                         # create a dictionary of attributes from LIKELY_HEADER_ATTRIBUTES
                         match_groups = match.groups()
