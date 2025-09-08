@@ -1,16 +1,37 @@
 
+# need to rememember how html 2 instructions treats empty lines
+# may need to rejig to standardize
 
-def convert_text_to_instructions(content):
+TAB_SIZE = 4
+
+def get_left_indent(line):
+    count = 0
+    for c in line:
+        if c == '\t':
+            count += TAB_SIZE
+        elif c.isspace() and c not in '\r\n\f\v':
+            count += 1
+        else:
+            break
+    return count
+
+
+
+def convert_text_to_instructions(content,mapping_dict=None):
     lines = content.split('\n')
+    instructions_list = []
 
-    # need to remember how instrunctions_list vs instructions work
-    # i think its
-    # each newline in html like div, creates a new instruction block
-    # issue with that is e.g. pdf-> html.
-    # nah thats fine, within a div looks different depending on window format os not important
-    # this new rule will fit in with the pdf-> html stuff
+    for line in lines:
+        instructions = []
+        if len(line) != 0:
+            instruction = {'text':line}
+            left_indent = get_left_indent(line)
+            if left_indent != 0:
+                instruction['left-indent'] = str(left_indent)
 
-    # what we need to do
-    # each line becomes instruction block with e.g. styles
+            instructions.append(instruction)
+            instructions_list.append(instructions)
+        else:
+            instructions_list.append([])
 
-    # then send to convert to dict, which will handle wrap around
+    return instructions_list
