@@ -11,4 +11,3 @@ from .html.html2dict import html2dict
 from .pdf.pdf2dict import pdf2dict
 
 from .utils.utils import unnest_dict, get_title
-from .utils.storage import serialize_instructions_list, deserialize_instructions_list
