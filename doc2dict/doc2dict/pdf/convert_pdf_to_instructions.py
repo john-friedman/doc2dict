@@ -30,11 +30,11 @@ def convert_pdf_to_instructions(content):
             # left bottom righ top
             coords_tuple = obj.get_pos()
             
-            # lets not add items if font size is 0
+            # lets not add items if font size is 0  
             if font_size is None:
                 continue
             else:
-                instruction = {'text': text}  | {'coords': coords_tuple, 'font-size': font_size, 'font-name': font_name} | font_attributes
+                instruction = {'text': text}  | {'coords': coords_tuple, 'font-size': str(font_size), 'font-name': font_name} | font_attributes
                 instructions_stream.append(instruction)
 
     
