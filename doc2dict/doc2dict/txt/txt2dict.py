@@ -11,19 +11,35 @@ def combine_text_wraparound(instructions_list):
     current_instructions = []
     
     for line_num in range(len(instructions_list) - 1):
-        current_instructions.append(instructions_list[line_num])
-        current_instructions.append({'text':' ','wraparound':True})
+        instructions = instructions_list[line_num]
+        # Add wraparound attribute to each instruction
+        for instruction in instructions:
+            instruction['wraparound'] = True
+
+        # Only add space if this is NOT the first line of the paragraph
+        if current_instructions and 'text' in instructions[0]:
+            instructions[0]['text'] = ' ' + instructions[0]['text']
+        
+        # Extend current_instructions with this line's instructions
+        current_instructions.extend(instructions)
         
         if instructions_list[line_num + 1] == []:  # Next line is empty
-            new_instructions_list.append(current_instructions)
-            current_instructions = []
+            if current_instructions:  # Only append if not empty
+                new_instructions_list.append(current_instructions)
+            current_instructions = []  # Reset for new paragraph
     
     # Handle the last line
-    current_instructions.append(instructions_list[-1])
-    if current_instructions:
-        new_instructions_list.append(current_instructions)
-    
-    print(new_instructions_list)
+    if instructions_list:  # Check if list is not empty
+        last_instructions = instructions_list[-1]
+        
+        # Only add space if this is NOT the first line of the paragraph
+        if current_instructions and 'text' in last_instructions[0]:
+            last_instructions[0]['text'] = ' ' + last_instructions[0]['text']
+            
+        current_instructions.extend(last_instructions)
+        if current_instructions:  # Only append if not empty
+            new_instructions_list.append(current_instructions)
+
     return new_instructions_list
 
         
@@ -36,8 +52,6 @@ def txt2dict(content,mapping_dict=None,encoding='utf-8'):
     # probably add default and if detected for the pdf use case
 
     instructions_list = combine_text_wraparound(instructions_list=instructions_list)
-
-
 
     dct = convert_instructions_to_dict(instructions_list=instructions_list,mapping_dict=mapping_dict)
     return dct
