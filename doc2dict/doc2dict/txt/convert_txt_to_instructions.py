@@ -2,6 +2,8 @@
 # need to rememember how html 2 instructions treats empty lines
 # may need to rejig to standardize
 
+from ..utils.strings import check_string_style
+
 TAB_SIZE = 4
 
 def get_left_indent(line):
@@ -15,7 +17,7 @@ def get_left_indent(line):
             break
     return count
 
-def convert_text_to_instructions(content,mapping_dict=None):
+def convert_txt_to_instructions(content):
     lines = content.split('\n')
     instructions_list = []
 
@@ -26,6 +28,10 @@ def convert_text_to_instructions(content,mapping_dict=None):
             left_indent = get_left_indent(line)
             if left_indent != 0:
                 instruction['left-indent'] = str(left_indent)
+
+            # style
+            styles = check_string_style(line)
+            instruction.update(styles)
 
             instructions.append(instruction)
             instructions_list.append(instructions)

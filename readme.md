@@ -121,3 +121,7 @@ visualize_dict(dct)
 ### Other Functions:
 - flatten_dict(dct, format='markdown') or flatten_dict(dct, format='text')
 - unnest_dict(dct) - returns dict in form (id,type,content,level)
+
+# TODO
+- generalize instructions to dict
+- add github workflow to run parser on examples after each push.

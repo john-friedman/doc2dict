@@ -1,8 +1,0 @@
-Benchmark:
-Apple 10-K 2024 (57 pages)
-~ 150 milliseconds single threaded
-
-Pipeline:
-1. reduce to flow
-2. convert flow into discrete
-3. convert discrete into dict

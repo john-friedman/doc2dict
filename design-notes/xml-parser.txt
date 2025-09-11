@@ -1,4 +1,0 @@
-So, turns out xmltodict already wrote this
-https://github.com/martinblech/xmltodict
-
-Well done! Very happy someone else did it better.
