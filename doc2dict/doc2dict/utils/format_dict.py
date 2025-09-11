@@ -96,8 +96,9 @@ def unnest_dict(dct):
     
     return result
 
-def flatten_dict(dct, format='markdown'):
-    tuples_list = unnest_dict(dct)
+def flatten_dict(dct=None, format='markdown',tuples_list=None):
+    if tuples_list is None:
+        tuples_list = unnest_dict(dct)
     results = []
     if format == 'markdown':
         for tuple in tuples_list:
