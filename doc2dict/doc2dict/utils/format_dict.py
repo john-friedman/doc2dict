@@ -57,8 +57,11 @@ def _format_table(table_data):
     formatted_rows.append('')  # Empty line after table
     return formatted_rows
 
-def _format_title(text,level):
-    return "#"*min(level,6) + " " + text
+
+def _format_title(text, level):
+    # Ensure level is at least 1 for proper markdown heading
+    markdown_level = max(1, min(level + 1, 6))
+    return "#" * markdown_level + " " + text
 
 def unnest_dict(dct):
     result = []
