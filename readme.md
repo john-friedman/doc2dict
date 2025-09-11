@@ -117,3 +117,7 @@ visualize_dict(dct)
 ### Benchmarks
 
 * About 200 pages per second single threaded.
+
+### Other Functions:
+- flatten_dict(dct, format='markdown') or flatten_dict(dct, format='text')
+- unnest_dict(dct) - returns dict in form (id,type,content,level)
