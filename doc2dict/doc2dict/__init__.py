@@ -10,4 +10,5 @@ from .html.html2dict import html2dict
 
 from .pdf.pdf2dict import pdf2dict
 
-from .utils.utils import unnest_dict, get_title
+from .utils.utils import get_title
+from .utils.format_dict import unnest_dict, flatten_dict
