@@ -34,7 +34,7 @@ def convert_pdf_to_instructions(content):
             if font_size is None:
                 continue
             else:
-                instruction = {'text': text}  | {'coords': coords_tuple, 'font-size': str(font_size), 'font-name': font_name} | font_attributes
+                instruction = {'text': text}  | {'coords': coords_tuple, 'font-size': font_size, 'font-name': font_name} | font_attributes
                 instructions_stream.append(instruction)
 
     

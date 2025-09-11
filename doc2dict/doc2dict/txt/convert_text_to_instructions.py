@@ -15,8 +15,6 @@ def get_left_indent(line):
             break
     return count
 
-
-
 def convert_text_to_instructions(content,mapping_dict=None):
     lines = content.split('\n')
     instructions_list = []

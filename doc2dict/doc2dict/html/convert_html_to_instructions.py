@@ -209,7 +209,7 @@ def get_style(node):
     if 'font-size' in style_dict:
         font_size = style_dict['font-size']
         font_size = normalize_to_px(font_size)
-        stacks.append({'font-size': str(font_size)})
+        stacks.append({'font-size': font_size})
     
     if 'text-indent' in style_dict:
         indent = style_dict['text-indent']
