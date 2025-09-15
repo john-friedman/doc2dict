@@ -1,4 +1,6 @@
-# TODO MOVE ALL CODE HERE #
+# TODO
+# rewrite this to set up modular stuff
+# e.g. preprocessing like wraparound
 
 import re
 from importlib.metadata import version
@@ -270,6 +272,9 @@ def determine_levels(instructions_list, mapping_dict=None):
     return levels
 
 def convert_instructions_to_dict(instructions_list, mapping_dict=None):
+
+    # add filtering stage here
+
     # CHANGE: Split mixed header-content groups first
     instructions_list = split_header_instructions(instructions_list)
     

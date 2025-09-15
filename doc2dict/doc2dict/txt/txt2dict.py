@@ -53,6 +53,17 @@ def txt2dict(content,mapping_dict=None,encoding='utf-8'):
 
     instructions_list = combine_text_wraparound(instructions_list=instructions_list)
 
+    # handle dash headers e.g. [{'text': 'Item 2.  Properties', 'wraparound': True}, {'text': ' -------------------', 'wraparound': True}]
+    # duct tape solution TODO fix
+    for instructions in instructions_list:
+        if 'text' in instructions[-1]:
+            if set(instructions[-1]['text'].replace(' ','')) == {'-'}:
+                # add bold to all instructions
+                [item.update({'bold': True}) or item for item in instructions]
+                instructions.pop()
+    
+    instructions_list = [item for item in instructions_list if item !=[]]
+
     dct = convert_instructions_to_dict(instructions_list=instructions_list,mapping_dict=mapping_dict)
     return dct
     
