@@ -3,15 +3,18 @@ import re
 def get_title(dct, title=None, title_regex=None, title_class=None):
     results = []
     
-    # Ensure exactly one of title or title_regex is specified
-    if (title is None and title_regex is None) or (title is not None and title_regex is not None):
-        raise ValueError("Exactly one of 'title' or 'title_regex' must be specified")
+    # Ensure valid parameter combination
+    if title is not None and title_regex is not None:
+        raise ValueError("Cannot specify both 'title' and 'title_regex'")
+    
+    if title is None and title_regex is None and title_class is None:
+        raise ValueError("At least one of 'title', 'title_regex', or 'title_class' must be specified")
     
     title_class = title_class.lower() if title_class else None
     
     if title_regex:
         title_pattern = re.compile(title_regex, re.IGNORECASE)
-    else:
+    elif title:
         title_lower = title.lower()
     
     def search(node, parent_id=None):
@@ -24,11 +27,17 @@ def get_title(dct, title=None, title_regex=None, title_class=None):
             if title_regex:
                 title_match = (title_pattern.match(node_title) or 
                               title_pattern.match(node_standardized_title))
-            else:
+            elif title:
                 title_match = (node_title.lower() == title_lower or 
                               node_standardized_title.lower() == title_lower)
+            else:
+                # No title filter specified, match all titles
+                title_match = True
             
-            if title_match and (title_class is None or node_class == title_class):
+            # Apply class filter
+            class_match = (title_class is None or node_class == title_class)
+            
+            if title_match and class_match:
                 results.append((parent_id, node))
                 
             contents = node.get('contents', {})
