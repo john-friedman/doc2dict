@@ -1,3 +1,5 @@
+import re
+
 EMPTY_CHARS = ' \t\n\r\xa0'
 EMPTY_TABLE_CHARS = ['', '–', '-']
 LEFT_TABLE_CHARS = ['$','(']
@@ -314,7 +316,7 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern):
     Returns:
         None (modifies parent_contents in place)
     """
-    import re
+
     
     # Get all keys sorted numerically
     try:
@@ -381,31 +383,227 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern):
         for key in keys_to_remove:
             del parent_contents[key]
 
+        return keys_to_remove
 
-def apply_footnotes_to_tables(obj, regex_pattern, parent=None, parent_key=None):
+
+def apply_table_annotations(obj, rules, parent=None, parent_key=None):
     """
-    Recursively walk through document and collect footnotes for tables.
+    Recursively walk through document and collect preamble, footnotes, and postamble for tables.
     
     Args:
         obj: Current object being processed
-        regex_pattern: Regex pattern to match footnotes
+        rules: Table postprocessing rules dict
         parent: Parent object (for tracking)
         parent_key: Key in parent object (for tracking)
     """
     if isinstance(obj, dict):
         # Check if this dict contains a table
         if 'table' in obj and parent is not None and parent_key is not None:
-            # This is a content item with a table - collect its footnotes
-            collect_table_footnotes(parent, parent_key, regex_pattern)
+            # This is a content item with a table - collect annotations in order
+            
+            # 1. Collect preamble (if configured)
+            if "preamble" in rules:
+                collect_table_preamble(parent, parent_key, rules["preamble"])
+            
+            # 2. Collect footnotes (if configured)
+            footnote_keys = []
+            if "footnotes" in rules:
+                footnote_regex = rules["footnotes"]["regex"]
+                footnote_keys = collect_table_footnotes(parent, parent_key, footnote_regex)
+            
+            # 3. Collect postamble (if configured)
+            if "postamble" in rules:
+                collect_table_postamble(parent, parent_key, rules["postamble"], footnote_keys)
         else:
             # Recurse into nested structures
             for key, value in list(obj.items()):  # Use list() to avoid modification during iteration
                 if key == 'contents' and isinstance(value, dict):
                     # This is a contents dictionary - recurse with it as parent
                     for content_key, content_value in list(value.items()):
-                        apply_footnotes_to_tables(content_value, regex_pattern, value, content_key)
+                        apply_table_annotations(content_value, rules, value, content_key)
                 else:
-                    apply_footnotes_to_tables(value, regex_pattern, obj, key)
+                    apply_table_annotations(value, rules, obj, key)
     elif isinstance(obj, list):
         for item in obj:
-            apply_footnotes_to_tables(item, regex_pattern, None, None)
+            apply_table_annotations(item, rules, None, None)
+
+def collect_table_preamble(parent_contents, table_key, preamble_config):
+    """
+    Collect content that comes before a table and move it into the table's preamble array.
+    
+    Args:
+        parent_contents: The contents dictionary containing the table
+        table_key: The key/index of the table in parent_contents
+        preamble_config: Config dict with collection rules (e.g., {"lines": 3})
+    
+    Returns:
+        None (modifies parent_contents in place)
+    """
+    # Get number of lines to collect
+    num_lines = preamble_config.get("lines", 0)
+    if num_lines <= 0:
+        return
+    
+    # Get all keys sorted numerically
+    try:
+        sorted_keys = sorted(parent_contents.keys(), key=lambda x: int(x) if str(x).lstrip('-').isdigit() else float('inf'))
+    except:
+        sorted_keys = sorted(parent_contents.keys())
+    
+    # Find the index of our table
+    try:
+        table_index = sorted_keys.index(table_key)
+    except ValueError:
+        return  # Table key not found
+    
+    # Collect preamble from previous items (backwards)
+    preamble = []
+    keys_to_remove = []
+    
+    for i in range(table_index - 1, -1, -1):  # Walk backwards
+        if len(preamble) >= num_lines:
+            break
+            
+        key = sorted_keys[i]
+        item = parent_contents[key]
+        
+        # Only collect text and textsmall items
+        if isinstance(item, dict):
+            if 'text' in item:
+                preamble.insert(0, {'text': item['text']})  # Insert at front to maintain order
+                keys_to_remove.append(key)
+            elif 'textsmall' in item:
+                preamble.insert(0, {'textsmall': item['textsmall']})
+                keys_to_remove.append(key)
+            else:
+                # Hit non-text content (table, image, section), stop
+                break
+        else:
+            # Hit non-dict item, stop
+            break
+    
+    # Add preamble to the table if any were collected
+    if preamble:
+        parent_contents[table_key]['table']['preamble'] = preamble
+        
+        # Remove the preamble items from parent_contents
+        for key in keys_to_remove:
+            del parent_contents[key]
+
+
+def collect_table_postamble(parent_contents, table_key, postamble_config, footnote_keys):
+    """
+    Collect content that comes after a table's footnotes and move it into the table's postamble array.
+    
+    Args:
+        parent_contents: The contents dictionary containing the table
+        table_key: The key/index of the table in parent_contents
+        postamble_config: Config dict with collection rules (e.g., {"lines": 2})
+        footnote_keys: List of keys used by footnotes (to skip over them)
+    
+    Returns:
+        None (modifies parent_contents in place)
+    """
+    # Get number of lines to collect
+    num_lines = postamble_config.get("lines", 0)
+    if num_lines <= 0:
+        return
+    
+    # Get all keys sorted numerically
+    try:
+        sorted_keys = sorted(parent_contents.keys(), key=lambda x: int(x) if str(x).lstrip('-').isdigit() else float('inf'))
+    except:
+        sorted_keys = sorted(parent_contents.keys())
+    
+    # Find the index of our table
+    try:
+        table_index = sorted_keys.index(table_key)
+    except ValueError:
+        return  # Table key not found
+    
+    # Find where to start collecting (after footnotes if they exist)
+    start_index = table_index + 1
+    if footnote_keys:
+        # Find the highest footnote key index
+        footnote_indices = [sorted_keys.index(fk) for fk in footnote_keys if fk in sorted_keys]
+        if footnote_indices:
+            start_index = max(footnote_indices) + 1
+    
+    # Collect postamble from subsequent items
+    postamble = []
+    keys_to_remove = []
+    
+    for i in range(start_index, len(sorted_keys)):
+        if len(postamble) >= num_lines:
+            break
+            
+        key = sorted_keys[i]
+        item = parent_contents[key]
+        
+        # Only collect text and textsmall items
+        if isinstance(item, dict):
+            if 'text' in item:
+                postamble.append({'text': item['text']})
+                keys_to_remove.append(key)
+            elif 'textsmall' in item:
+                postamble.append({'textsmall': item['textsmall']})
+                keys_to_remove.append(key)
+            else:
+                # Hit non-text content (table, image, section), stop
+                break
+        else:
+            # Hit non-dict item, stop
+            break
+    
+    # Add postamble to the table if any were collected
+    if postamble:
+        parent_contents[table_key]['table']['postamble'] = postamble
+        
+        # Remove the postamble items from parent_contents
+        for key in keys_to_remove:
+            del parent_contents[key]
+
+def remove_single_row_tables(obj, parent=None, parent_key=None):
+    """
+    Recursively walk through document and convert single-row tables to text.
+    
+    Args:
+        obj: Current object being processed
+        parent: Parent object (for tracking)
+        parent_key: Key in parent object (for tracking)
+    """
+    if isinstance(obj, dict):
+        # Check if this dict contains a single-row table
+        if 'table' in obj and parent is not None and parent_key is not None:
+            table_data = obj['table']['data']
+            
+            # Check if single row
+            if len(table_data) == 1:
+                # Convert the single row to text instructions
+                row = table_data[0]
+                
+                # Combine all cells into one text string (space-separated)
+                text_parts = []
+                for cell in row:
+                    if isinstance(cell, dict) and 'text' in cell:
+                        text_parts.append(cell['text'])
+                    elif isinstance(cell, str):
+                        text_parts.append(cell)
+                
+                combined_text = ' '.join(text_parts)
+                
+                # Replace the table with a text entry in parent
+                del parent[parent_key]
+                parent[parent_key] = {'text': combined_text}
+        else:
+            # Recurse into nested structures
+            for key, value in list(obj.items()):
+                if key == 'contents' and isinstance(value, dict):
+                    # This is a contents dictionary - recurse with it as parent
+                    for content_key, content_value in list(value.items()):
+                        remove_single_row_tables(content_value, value, content_key)
+                else:
+                    remove_single_row_tables(value, obj, key)
+    elif isinstance(obj, list):
+        for item in obj:
+            remove_single_row_tables(item, None, None)

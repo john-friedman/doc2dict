@@ -113,6 +113,28 @@ def visualize_dict(data_dict, filename='document_visualization.html', open_brows
                 margin: 5px 0;
                 color: #555;
             }
+                
+            .table-preamble {
+                margin-bottom: 10px;
+                padding: 10px;
+                background-color: #f0f8ff;
+                border-left: 3px solid #4a90e2;
+                font-size: 0.95em;
+                font-style: italic;
+            }
+
+            .table-postamble {
+                margin-top: 10px;
+                padding: 10px;
+                background-color: #fff8f0;
+                border-left: 3px solid #e2a04a;
+                font-size: 0.95em;
+            }
+
+            .preamble-item, .postamble-item {
+                margin: 5px 0;
+                color: #444;
+            }
         </style>
     </head>
     <body>
@@ -235,6 +257,18 @@ def process_table_cell(cell):
 
 def process_table(content, html):
     """Convert table data to HTML table"""
+    
+    # Process preamble if present (BEFORE table)
+    if 'preamble' in content:
+        html.append('<div class="table-preamble">')
+        for preamble_item in content['preamble']:
+            if 'text' in preamble_item:
+                html.append(f'<p class="preamble-item">{preamble_item["text"]}</p>')
+            elif 'textsmall' in preamble_item:
+                html.append(f'<p class="preamble-item textsmall">{preamble_item["textsmall"]}</p>')
+        html.append('</div>')
+    
+    # Render the table
     table_data = content['data']
     
     html.append('<table>')
@@ -265,12 +299,22 @@ def process_table(content, html):
     
     html.append('</table>')
     
-    # Process footnotes if present
+    # Process footnotes if present (AFTER table)
     if 'footnotes' in content:
         html.append('<div class="table-footnotes">')
         for footnote in content['footnotes']:
             if 'text' in footnote:
                 html.append(f'<p class="footnote"><b>{footnote["footnote_id"]}</b> {footnote["text"]}</p>')
             elif 'textsmall' in footnote:
-                html.append(f'<p class="footnote"><b>{footnote["footnote_id"]}</b> {footnote["textsmall"]}</p>')
+                html.append(f'<p class="footnote textsmall"><b>{footnote["footnote_id"]}</b> {footnote["textsmall"]}</p>')
+        html.append('</div>')
+    
+    # Process postamble if present (AFTER footnotes)
+    if 'postamble' in content:
+        html.append('<div class="table-postamble">')
+        for postamble_item in content['postamble']:
+            if 'text' in postamble_item:
+                html.append(f'<p class="postamble-item">{postamble_item["text"]}</p>')
+            elif 'textsmall' in postamble_item:
+                html.append(f'<p class="postamble-item textsmall">{postamble_item["textsmall"]}</p>')
         html.append('</div>')

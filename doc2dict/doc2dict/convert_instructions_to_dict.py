@@ -1,6 +1,6 @@
 import re
 from importlib.metadata import version
-from .helper.table import walk_and_process_tables, apply_footnotes_to_tables
+from .helper.table import walk_and_process_tables, apply_table_annotations, remove_single_row_tables
 __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
@@ -353,9 +353,12 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
         if table_postprocessing_rules:
             walk_and_process_tables(document['contents'], table_postprocessing_rules)
 
+            # Remove single-row tables if configured
+            if "disallow_single_row_tables" in table_postprocessing_rules.get("bool", []):
+                remove_single_row_tables(document['contents'])
+
             if "footnotes" in table_postprocessing_rules:
-                footnote_regex = table_postprocessing_rules["footnotes"]["regex"]
-                apply_footnotes_to_tables(document['contents'], footnote_regex)
+                apply_table_annotations(document['contents'], table_postprocessing_rules)
 
     # Create final result with metadata
     result = {
