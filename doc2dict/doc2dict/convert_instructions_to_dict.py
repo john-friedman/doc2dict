@@ -1,13 +1,10 @@
-# TODO
-# rewrite this to set up modular stuff
-# e.g. preprocessing like wraparound
-
 import re
 from importlib.metadata import version
-
+from .helper.table import walk_and_process_tables
 __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
+
 
 def remove_empty_contents(obj):
     """Recursively remove empty contents dictionaries"""
@@ -27,6 +24,11 @@ def create_level(level_num=-1, class_name='text', title='', attributes=None):
         'attributes': attributes or {}
     }
 
+
+
+# ============================================================================
+# HEADER DETECTION AND LEVEL DETERMINATION
+# ============================================================================
 
 def split_header_instructions(instructions_list):
     """
@@ -87,7 +89,7 @@ def split_header_instructions(instructions_list):
     return new_instructions_list
 
 
-# AI GENERATED CODE BC I WANT TO PUSH TO PROD #
+
 def determine_predicted_header_levels(levels):
     """
     Assigns hierarchy levels to predicted headers based on their attributes,
@@ -152,21 +154,12 @@ def determine_predicted_header_levels(levels):
     return [(level['level'], level['class'], level.get('standardized_title','')) for level in updated_levels]
 # AI GENERATED CODE BC I WANT TO PUSH TO PROD #
 
-def extract_cell_content(cell):
-    """Helper function to extract content from table cells that may contain text or images"""
-    if 'image' in cell:
-        return cell  # Return the full cell structure for images
+def determine_levels(instructions_list, mapping_levels=None,processing_rules=None):
+    if mapping_levels is None:
+        predicted_header_level = 0
     else:
-        return cell.get("text", "")  # Return text content or empty string
+        predicted_header_level = max(mapping_levels.keys(), default=0)
 
-def determine_levels(instructions_list, mapping_dict=None):
-    if mapping_dict is None:
-        predicted_header_level = 0
-    #TODO bandaid fix
-    elif 'rules' in mapping_dict:
-        predicted_header_level = 0
-    else:
-        predicted_header_level = max(mapping_dict.values()) + 1
 
     # filter out tables, include both text and image instructions
     headers = []
@@ -185,39 +178,38 @@ def determine_levels(instructions_list, mapping_dict=None):
     font_size_counts = {size: sum(1 for item in text_instructions if item.get('font-size') == size) for size in set(item.get('font-size') for item in text_instructions if item.get('font-size') is not None)}
     
     # use only font size goes here
-    if mapping_dict is not None:
-        if 'rules' in mapping_dict:
-            if 'use_font_size_only_for_level' in mapping_dict['rules']:
-                # Filter headers first for this special case
-                headers = [item if 'text' in item and any([item.get(attr, False) for attr in LIKELY_HEADER_ATTRIBUTES]) else {} for item in headers]
-                
-                most_common_font_size, font_count = max(font_size_counts.items(), key=lambda x: x[1])
-                
-                # Get all unique font sizes and sort them in descending order (largest font = level 0, next = level 1, etc.)
-                unique_font_sizes = sorted(font_size_counts.keys(), reverse=True)
-                
-                # Create a mapping from font size to level (largest font = level 0, next = level 1, etc.)
-                font_size_to_level = {size: idx for idx, size in enumerate(unique_font_sizes)}
-                
-                levels = []
-                for idx, header in enumerate(headers):
-                    if 'text' in header and header.get('font-size') is not None:
-                        font_size = header.get('font-size')
-                        
-                        if font_size < most_common_font_size:
-                            # Assign small script for fonts smaller than most common
-                            level = (-2,'textsmall','')
-                        else:
-                            # Assign level based on font size hierarchy
-                            hierarchy_level = font_size_to_level[font_size]
-                            level = (hierarchy_level, 'predicted header','')
-                    else:
-                        # No font size information or not text, treat as regular text
-                        level = (-1, 'text','')
+    if processing_rules is not None:
+        if 'use_font_size_only_for_level' in processing_rules.get("bool",[]):
+            # Filter headers first for this special case
+            headers = [item if 'text' in item and any([item.get(attr, False) for attr in LIKELY_HEADER_ATTRIBUTES]) else {} for item in headers]
+            
+            most_common_font_size, font_count = max(font_size_counts.items(), key=lambda x: x[1])
+            
+            # Get all unique font sizes and sort them in descending order (largest font = level 0, next = level 1, etc.)
+            unique_font_sizes = sorted(font_size_counts.keys(), reverse=True)
+            
+            # Create a mapping from font size to level (largest font = level 0, next = level 1, etc.)
+            font_size_to_level = {size: idx for idx, size in enumerate(unique_font_sizes)}
+            
+            levels = []
+            for idx, header in enumerate(headers):
+                if 'text' in header and header.get('font-size') is not None:
+                    font_size = header.get('font-size')
                     
-                    levels.append(level)
+                    if font_size < most_common_font_size:
+                        # Assign small script for fonts smaller than most common
+                        level = (-2,'textsmall','')
+                    else:
+                        # Assign level based on font size hierarchy
+                        hierarchy_level = font_size_to_level[font_size]
+                        level = (hierarchy_level, 'predicted header','')
+                else:
+                    # No font size information or not text, treat as regular text
+                    level = (-1, 'text','')
                 
-                return levels
+                levels.append(level)
+            
+            return levels
     
     # Detect font sizes first (before filtering headers)
     if font_size_counts != {}:
@@ -240,9 +232,13 @@ def determine_levels(instructions_list, mapping_dict=None):
         if small_script[idx]:
             level = create_level(-2, 'textsmall')
         elif 'text' in header:
-            if mapping_dict is not None:
+            if mapping_levels is not None:
                 text = header['text'].lower()
-                regex_tuples = [(item[0][1], item[0][0], item[1]) for item in mapping_dict.items()]
+                regex_tuples = [
+                    (pattern_dict["regex"], pattern_dict["name"], level)
+                    for level, patterns in mapping_levels.items()
+                    for pattern_dict in patterns
+                ]
                 
                 for regex, header_class, hierarchy_level in regex_tuples:
                     match = re.match(regex, text.strip())
@@ -271,15 +267,19 @@ def determine_levels(instructions_list, mapping_dict=None):
     levels = determine_predicted_header_levels(levels)
     return levels
 
-def convert_instructions_to_dict(instructions_list, mapping_dict=None):
+# ============================================================================
+# MAIN CONVERSION FUNCTION
+# ============================================================================
 
-    # add filtering stage here
+def convert_instructions_to_dict(instructions_list, mapping_dict=None):
 
     # CHANGE: Split mixed header-content groups first
     instructions_list = split_header_instructions(instructions_list)
     
     # Get pre-calculated levels for each instruction
-    levels = determine_levels(instructions_list, mapping_dict)
+    mapping_levels = mapping_dict.get("levels", None) if mapping_dict else None
+    processing_rules = mapping_dict.get("dct", {}) if mapping_dict else {}
+    levels = determine_levels(instructions_list, mapping_levels, processing_rules)
     
     # Initialize document structure
     document = {'contents': {}}
@@ -345,8 +345,14 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
                 elif 'image' in instruction:
                     current_section['contents'][idx] = {'image': instruction['image']}
                 elif 'table' in instruction:
-                    current_section['contents'][idx] = {'table': [[extract_cell_content(cell) for cell in row] for row in instruction['table']]}
+                    current_section['contents'][idx] = {'table': instruction['table']}
     
+    # POSTPROCESSING STAGE: Apply table postprocessing rules (if any)
+    if mapping_dict and "dct" in mapping_dict and "postprocessing" in mapping_dict["dct"]:
+        table_postprocessing_rules = mapping_dict["dct"]["postprocessing"].get("table", {})
+        if table_postprocessing_rules:
+            walk_and_process_tables(document['contents'], table_postprocessing_rules)
+
     # Create final result with metadata
     result = {
         'metadata': {
