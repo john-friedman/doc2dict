@@ -1,6 +1,6 @@
 import re
 from importlib.metadata import version
-from .helper.table import walk_and_process_tables
+from .helper.table import walk_and_process_tables, apply_footnotes_to_tables
 __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
@@ -345,13 +345,17 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
                 elif 'image' in instruction:
                     current_section['contents'][idx] = {'image': instruction['image']}
                 elif 'table' in instruction:
-                    current_section['contents'][idx] = {'table': instruction['table']}
+                    current_section['contents'][idx] = {'table': {'data': instruction['table']}}
     
     # POSTPROCESSING STAGE: Apply table postprocessing rules (if any)
     if mapping_dict and "dct" in mapping_dict and "postprocessing" in mapping_dict["dct"]:
         table_postprocessing_rules = mapping_dict["dct"]["postprocessing"].get("table", {})
         if table_postprocessing_rules:
             walk_and_process_tables(document['contents'], table_postprocessing_rules)
+
+            if "footnotes" in table_postprocessing_rules:
+                footnote_regex = table_postprocessing_rules["footnotes"]["regex"]
+                apply_footnotes_to_tables(document['contents'], footnote_regex)
 
     # Create final result with metadata
     result = {

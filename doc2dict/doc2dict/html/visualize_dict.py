@@ -220,8 +220,10 @@ def process_table_cell(cell):
         # Cell is a string or other simple type
         return str(cell)
 
-def process_table(table_data, html):
+def process_table(content, html):
     """Convert table data to HTML table"""
+    table_data = content['data']
+    
     html.append('<table>')
     
     # Check if first row should be treated as header

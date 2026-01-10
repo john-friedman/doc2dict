@@ -9,7 +9,16 @@ RIGHT_TABLE_CHARS = [')','%']
 
 def is_subset(items1, items2, empty_chars):
     """returns true if items1 is a subset of items2"""
-    return all(item1.get('text', '') in empty_chars or item1.get('text', '') == item2.get('text', '') for item1, item2 in zip(items1, items2))
+    for item1, item2 in zip(items1, items2):
+        # If item1 has an image, it's not a subset
+        if 'image' in item1:
+            return False
+        # Check text content
+        if item1.get('text', '') not in empty_chars and item1.get('text', '') != item2.get('text', ''):
+            return False
+    return True
+
+
 
 def remove_subset_rows(table, empty_chars, direction="bottom_to_top"):
     """
@@ -177,9 +186,10 @@ def convert_images_to_text_in_table(table):
         for col_idx, cell in enumerate(row):
             if 'image' in cell:
                 src = cell['image'].get('src', '')
+                alt = cell['image'].get('alt', '')
                 # Create new text cell preserving other attributes
                 new_cell = {k: v for k, v in cell.items() if k != 'image'}
-                new_cell['text'] = f'[IMAGE: {src}]'
+                new_cell['text'] = f'[ALT: {alt}. SRC: {src}]'
                 table[row_idx][col_idx] = new_cell
     return table
 
@@ -187,7 +197,7 @@ def remove_empty_rows_from_table(table):
     """Remove rows where all cells contain only EMPTY_TABLE_CHARS"""
     empty_chars = EMPTY_TABLE_CHARS
     table = [row for row in table if any(
-        (cell.get('text', '') not in empty_chars)
+        ('image' in cell or cell.get('text', '') not in empty_chars)
         for cell in row
     )]
     return table
@@ -197,68 +207,92 @@ def remove_empty_columns_from_table(table):
     if table and table[0]:
         empty_chars = EMPTY_TABLE_CHARS
         keep_cols = [j for j in range(len(table[0])) if any(
-            (table[i][j].get('text', '') not in empty_chars)
+            ('image' in table[i][j] or table[i][j].get('text', '') not in empty_chars)
             for i in range(len(table))
         )]
         table = [[row[j] for j in keep_cols] for row in table]
     return table
 
+def simplify_table_cells(table):
+    """Convert cell dictionaries to strings (extract text only)"""
+    simplified_table = []
+    
+    for row in table:
+        simplified_row = []
+        for cell in row:
+            if 'image' in cell:
+                # Keep image cells as dicts
+                simplified_row.append(cell)
+            elif 'text' in cell:
+                # Extract just the text string
+                simplified_row.append(cell['text'])
+            else:
+                # Empty cell
+                simplified_row.append('')
+        simplified_table.append(simplified_row)
+    
+    return simplified_table
+
 def apply_table_postprocessing(table, rules):
     """Apply table postprocessing rules in order"""
     if not rules:
         return table, "cleaned"
-    
+
+    enabled = rules.get("bool", [])
     cleaning_status = "cleaned"
-    
+
     # Validate structure
-    if rules.get("validate_structure", False):
+    if "validate_structure" in enabled:
         table, status = validate_table_structure(table)
         if status == "dirty":
             cleaning_status = "dirty"
-    
+
     # Merge formatting characters
-    if rules.get("merge_formatting_chars", False):
+    if "merge_formatting_chars" in enabled:
         table = merge_table_formatting(table)
-    
+
     # Convert images to text
-    if rules.get("convert_images_to_text", False):
+    if "convert_images_to_text" in enabled:
         table = convert_images_to_text_in_table(table)
-    
+
     # Remove empty rows
-    if rules.get("remove_empty_rows", False):
+    if "remove_empty_rows" in enabled:
         table = remove_empty_rows_from_table(table)
-    
+
     # Remove empty columns
-    if rules.get("remove_empty_columns", False):
+    if "remove_empty_columns" in enabled:
         table = remove_empty_columns_from_table(table)
-    
+
     # Remove subset rows
-    if rules.get("remove_subset_rows_bottom_to_top", False):
+    if "remove_subset_rows_bottom_to_top" in enabled:
         table = remove_subset_rows(table, EMPTY_TABLE_CHARS, "bottom_to_top")
-    
-    if rules.get("remove_subset_rows_top_to_bottom", False):
+
+    if "remove_subset_rows_top_to_bottom" in enabled:
         table = remove_subset_rows(table, EMPTY_TABLE_CHARS, "top_to_bottom")
-    
+
     # Remove subset columns
-    if rules.get("remove_subset_columns_left_to_right", False):
+    if "remove_subset_columns_left_to_right" in enabled:
         table = remove_subset_columns(table, EMPTY_TABLE_CHARS, "left_to_right")
-    
-    if rules.get("remove_subset_columns_right_to_left", False):
+
+    if "remove_subset_columns_right_to_left" in enabled:
         table = remove_subset_columns(table, EMPTY_TABLE_CHARS, "right_to_left")
-    
+
+    # Simplify cells
+    if "simplify_cells" in enabled:
+        table = simplify_table_cells(table)
+
     return table, cleaning_status
+
 
 def walk_and_process_tables(obj, rules):
     """Recursively walk through document and apply table postprocessing"""
     if isinstance(obj, dict):
         if 'table' in obj:
             # Found a table - apply postprocessing
-            table = obj['table']
+            table = obj['table']['data']
             processed_table, status = apply_table_postprocessing(table, rules)
-            obj['table'] = processed_table
-            # Optionally add status
-            if rules.get("apply_cleaning_status", False):
-                obj['cleaned'] = (status == "cleaned")
+            obj['table']['data'] = processed_table 
+            obj['table']['cleaned'] = (status == "cleaned") 
         else:
             # Recurse into nested structures
             for value in obj.values():
@@ -266,3 +300,100 @@ def walk_and_process_tables(obj, rules):
     elif isinstance(obj, list):
         for item in obj:
             walk_and_process_tables(item, rules)
+
+
+def collect_table_footnotes(parent_contents, table_key, regex_pattern):
+    """
+    Collect footnotes that follow a table and move them into the table's footnotes array.
+    
+    Args:
+        parent_contents: The contents dictionary containing the table
+        table_key: The key/index of the table in parent_contents
+        regex_pattern: Regex pattern to match footnote text
+    
+    Returns:
+        None (modifies parent_contents in place)
+    """
+    import re
+    
+    # Get all keys sorted numerically
+    try:
+        sorted_keys = sorted(parent_contents.keys(), key=lambda x: int(x) if str(x).lstrip('-').isdigit() else float('inf'))
+    except:
+        sorted_keys = sorted(parent_contents.keys())
+    
+    # Find the index of our table
+    try:
+        table_index = sorted_keys.index(table_key)
+    except ValueError:
+        return  # Table key not found
+    
+    # Collect footnotes from subsequent items
+    footnotes = []
+    keys_to_remove = []
+    
+    for i in range(table_index + 1, len(sorted_keys)):
+        key = sorted_keys[i]
+        item = parent_contents[key]
+        
+        # Only check text and textsmall items
+        if isinstance(item, dict):
+            matched = False
+            
+            # Check if it's a text or textsmall item
+            if 'text' in item:
+                text_content = item['text']
+                if re.match(regex_pattern, text_content.strip()):
+                    footnotes.append({'text': text_content})
+                    keys_to_remove.append(key)
+                    matched = True
+            elif 'textsmall' in item:
+                text_content = item['textsmall']
+                if re.match(regex_pattern, text_content.strip()):
+                    footnotes.append({'textsmall': text_content})
+                    keys_to_remove.append(key)
+                    matched = True
+            
+            # If this item didn't match, stop collecting
+            if not matched:
+                break
+        else:
+            # Hit a non-dict item, stop collecting
+            break
+    
+    # Add footnotes to the table if any were collected
+    if footnotes:
+        parent_contents[table_key]['table']['footnotes'] = footnotes
+        
+        # Remove the footnote items from parent_contents
+        for key in keys_to_remove:
+            del parent_contents[key]
+
+
+def apply_footnotes_to_tables(obj, regex_pattern, parent=None, parent_key=None):
+    """
+    Recursively walk through document and collect footnotes for tables.
+    
+    Args:
+        obj: Current object being processed
+        regex_pattern: Regex pattern to match footnotes
+        parent: Parent object (for tracking)
+        parent_key: Key in parent object (for tracking)
+    """
+    if isinstance(obj, dict):
+        # Check if this dict contains a table
+        if 'table' in obj and parent is not None and parent_key is not None:
+            # This is a content item with a table - collect its footnotes
+            collect_table_footnotes(parent, parent_key, regex_pattern)
+        else:
+            # Recurse into nested structures
+            for key, value in list(obj.items()):  # Use list() to avoid modification during iteration
+                if key == 'contents' and isinstance(value, dict):
+                    # This is a contents dictionary - recurse with it as parent
+                    for content_key, content_value in list(value.items()):
+                        apply_footnotes_to_tables(content_value, regex_pattern, value, content_key)
+                else:
+                    apply_footnotes_to_tables(value, regex_pattern, obj, key)
+    elif isinstance(obj, list):
+        for item in obj:
+            apply_footnotes_to_tables(item, regex_pattern, None, None)

@@ -485,34 +485,38 @@ def merge_instructions(instructions):
             result.append(current)
     
     return result
-# USED AI BC LAZY #
+
 
 def merge_cell_instructions(instructions):
     """
     Merge all text from cell instructions into a single instruction.
-    Discard images, concatenate all text, collect ALL attributes from ALL instructions.
+    Preserve images, concatenate all text, collect ALL attributes from ALL instructions.
     For boolean attributes (bold, italic, etc.), if ANY instruction has it, the result has it.
     For list attributes (font-size, href, etc.), use the last non-empty value.
     """
     if not instructions:
         return {'text': ''}
     
-    # Collect all text and all attributes
+    # Collect all text, image, and attributes
     combined_text = ''
+    image_data = None  # Keep the last/only image
     all_attributes = {}
     
     for instruction in instructions:
-        # Skip images completely
+        # Keep image data (last one wins if multiple images)
         if 'image' in instruction:
-            continue
-            
-        # Add any text content
-        if 'text' in instruction:
+            image_data = instruction['image']
+            # Also get any text that might be with the image
+            if 'text' in instruction:
+                combined_text += instruction['text']
+        
+        # Add text content
+        if 'text' in instruction and 'image' not in instruction:
             combined_text += instruction['text']
         
-        # Collect all attributes except 'text'
+        # Collect all attributes except 'text' and 'image'
         for key, value in instruction.items():
-            if key == 'text':
+            if key in ['text', 'image']:
                 continue
                 
             if key not in all_attributes:
@@ -521,6 +525,10 @@ def merge_cell_instructions(instructions):
     
     # Create final cell instruction
     result = {'text': combined_text}
+    
+    # Add image if present
+    if image_data:
+        result['image'] = image_data
     
     # Process collected attributes
     for key, values in all_attributes.items():
