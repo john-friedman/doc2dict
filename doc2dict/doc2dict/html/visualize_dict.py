@@ -100,6 +100,19 @@ def visualize_dict(data_dict, filename='document_visualization.html', open_brows
                 text-align: center;
                 margin: 15px 0;
             }
+            .table-footnotes {
+                margin-top: 5px;
+                margin-bottom: 15px;
+                padding-left: 10px;
+                border-left: 3px solid #ddd;
+                background-color: #fafafa;
+                padding: 10px;
+                font-size: 0.9em;
+            }
+            .footnote {
+                margin: 5px 0;
+                color: #555;
+            }
         </style>
     </head>
     <body>
@@ -251,3 +264,13 @@ def process_table(content, html):
         html.append('</tr>')
     
     html.append('</table>')
+    
+    # Process footnotes if present
+    if 'footnotes' in content:
+        html.append('<div class="table-footnotes">')
+        for footnote in content['footnotes']:
+            if 'text' in footnote:
+                html.append(f'<p class="footnote"><b>{footnote["footnote_id"]}</b> {footnote["text"]}</p>')
+            elif 'textsmall' in footnote:
+                html.append(f'<p class="footnote"><b>{footnote["footnote_id"]}</b> {footnote["textsmall"]}</p>')
+        html.append('</div>')

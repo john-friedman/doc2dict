@@ -343,14 +343,26 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern):
             # Check if it's a text or textsmall item
             if 'text' in item:
                 text_content = item['text']
-                if re.match(regex_pattern, text_content.strip()):
-                    footnotes.append({'text': text_content})
+                match = re.match(regex_pattern, text_content.strip())
+                if match:
+                    footnote_id = match.group(1)  # Get the captured group
+                    text_without_id = text_content.strip()[len(match.group(0)):]  # Remove the ID from text
+                    footnotes.append({
+                        'text': text_without_id.strip(),
+                        'footnote_id': footnote_id
+                    })
                     keys_to_remove.append(key)
                     matched = True
             elif 'textsmall' in item:
                 text_content = item['textsmall']
-                if re.match(regex_pattern, text_content.strip()):
-                    footnotes.append({'textsmall': text_content})
+                match = re.match(regex_pattern, text_content.strip())
+                if match:
+                    footnote_id = match.group(1)  # Get the captured group
+                    text_without_id = text_content.strip()[len(match.group(0)):]  # Remove the ID from text
+                    footnotes.append({
+                        'textsmall': text_without_id.strip(),
+                        'footnote_id': footnote_id
+                    })
                     keys_to_remove.append(key)
                     matched = True
             
