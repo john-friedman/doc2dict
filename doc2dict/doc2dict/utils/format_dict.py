@@ -63,6 +63,7 @@ def _format_title(text, level):
     markdown_level = max(1, min(level + 1, 6))
     return "#" * markdown_level + " " + text
 
+
 def unnest_dict(dct):
     result = []
     
@@ -70,14 +71,48 @@ def unnest_dict(dct):
         if not isinstance(content, dict):
             return
             
-        # Process title, text, textsmall, and table directly
-        for key in ['title', 'text', 'textsmall', 'table']:
+        # Process title, text, textsmall directly
+        for key in ['title', 'text', 'textsmall']:
             if key in content:
                 # skip introduction filler
                 if current_id == -1:
                     pass
                 else:
                     result.append((current_id, key, content[key], level))
+        
+        # Process table - flatten all components into separate tuples
+        if 'table' in content:
+            if current_id != -1:
+                table_dict = content['table']
+                
+                # Handle both old format (raw list) and new format (dict with 'data')
+                if isinstance(table_dict, dict):
+                    # New format - create separate tuples for each component
+                    
+                    # Preamble comes first if it exists
+                    if 'preamble' in table_dict:
+                        result.append((current_id, 'table_preamble', table_dict['preamble'], level))
+                    
+                    # Main table data
+                    if 'data' in table_dict:
+                        result.append((current_id, 'table_data', table_dict['data'], level))
+                    
+                    # Footnotes (could be a list, so add each one)
+                    if 'footnotes' in table_dict:
+                        footnotes = table_dict['footnotes']
+                        if isinstance(footnotes, list):
+                            for footnote in footnotes:
+                                result.append((current_id, 'table_footnote', footnote, level))
+                        else:
+                            # Single footnote as string
+                            result.append((current_id, 'table_footnote', footnotes, level))
+                    
+                    # Postamble comes last if it exists
+                    if 'postamble' in table_dict:
+                        result.append((current_id, 'table_postamble', table_dict['postamble'], level))
+                else:
+                    # Old format - just the raw list, now using 'table_data' for consistency
+                    result.append((current_id, 'table_data', table_dict, level))
         
         # Process contents recursively in numeric order
         contents = content.get('contents', {})
@@ -96,7 +131,8 @@ def unnest_dict(dct):
     
     return result
 
-def flatten_dict(dct=None, format='markdown',tuples_list=None):
+
+def flatten_dict(dct=None, format='markdown', tuples_list=None):
     if tuples_list is None:
         tuples_list = unnest_dict(dct)
     results = []
@@ -105,14 +141,22 @@ def flatten_dict(dct=None, format='markdown',tuples_list=None):
             tuple_type = tuple[1]
             content = tuple[2]
             level = tuple[3]
-            if tuple_type == 'table':
+            if tuple_type == 'table_data':
                 results.extend(_format_table(content))
+            elif tuple_type == 'table_preamble':
+                results.append(f'*{content}*')  # Italicized preamble
+                results.append('')
+            elif tuple_type == 'table_footnote':
+                results.append(f'<sub>{content}</sub>')
+            elif tuple_type == 'table_postamble':
+                results.append('')
+                results.append(f'*{content}*')  # Italicized postamble
             elif tuple_type == 'text':
                 results.append(content)
             elif tuple_type == 'textsmall':
                 results.append(f'<sub>{content}</sub>')
             elif tuple_type == 'title':
-                results.append(_format_title(content,level))
+                results.append(_format_title(content, level))
         
         return '\n'.join(results)
     elif format == 'text':
@@ -121,9 +165,17 @@ def flatten_dict(dct=None, format='markdown',tuples_list=None):
             content = tuple[2]
             level = tuple[3]
 
-            # reuse markdown format
-            if tuple_type == 'table':
+            # reuse markdown format for tables
+            if tuple_type == 'table_data':
                 results.extend(_format_table(content))
+            elif tuple_type == 'table_preamble':
+                results.append(content)
+                results.append('')
+            elif tuple_type == 'table_footnote':
+                results.append(content)
+            elif tuple_type == 'table_postamble':
+                results.append('')
+                results.append(content)
             elif tuple_type == 'text':
                 results.append(content)
             elif tuple_type == 'textsmall':
