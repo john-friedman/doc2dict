@@ -132,10 +132,24 @@ def unnest_dict(dct):
     return result
 
 
+def escape_markdown(text):
+    """Escape markdown special characters in text."""
+    if not isinstance(text, str):
+        return text
+    
+    chars_to_escape = ['\\', '`', '*', '_', '[', ']', '(', ')', '#', '+', '-', '.', '!', '|']
+    
+    for char in chars_to_escape:
+        text = text.replace(char, '\\' + char)
+    
+    return text
+
 def flatten_dict(dct=None, format='markdown', tuples_list=None):
     if tuples_list is None:
         tuples_list = unnest_dict(dct)
     results = []
+
+    # todo performance + apply escaping to table data
     if format == 'markdown':
         for tuple in tuples_list:
             tuple_type = tuple[1]
@@ -144,21 +158,28 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             if tuple_type == 'table_data':
                 results.extend(_format_table(content))
             elif tuple_type == 'table_preamble':
-                results.append(f'*{content}*')  # Italicized preamble
+                results.append('')
+                escaped_texts = [escape_markdown(item.get('text','')) for item in content]
+                results.append(f'*{' '.join(escaped_texts)}*')  # Italicized preamble
                 results.append('')
             elif tuple_type == 'table_footnote':
-                results.append(f'<sub>{content}</sub>')
+                escaped_id = escape_markdown(content.get('footnote_id', ''))
+                escaped_text = escape_markdown(content.get('text', ''))
+                results.append(f"- **{escaped_id}**: {escaped_text}")
             elif tuple_type == 'table_postamble':
                 results.append('')
-                results.append(f'*{content}*')  # Italicized postamble
+                escaped_texts = [escape_markdown(item.get('text','')) for item in content]
+                results.append(f'*{' '.join(escaped_texts)}*')   # Italicized postamble
+                results.append('')
             elif tuple_type == 'text':
-                results.append(content)
+                results.append(escape_markdown(content))
             elif tuple_type == 'textsmall':
-                results.append(f'<sub>{content}</sub>')
+                results.append(f'<sub>{escape_markdown(content)}</sub>')
             elif tuple_type == 'title':
-                results.append(_format_title(content, level))
+                results.append(_format_title(content, level))  # Escape inside _format_title
         
         return '\n'.join(results)
+    
     elif format == 'text':
         for tuple in tuples_list:
             tuple_type = tuple[1]
@@ -169,13 +190,15 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             if tuple_type == 'table_data':
                 results.extend(_format_table(content))
             elif tuple_type == 'table_preamble':
-                results.append(content)
+                results.append('')
+                results.append(f'{' '.join([item.get('text','') for item in content])}')
                 results.append('')
             elif tuple_type == 'table_footnote':
-                results.append(content)
+                results.append(f"{content.get('footnote_id', '')}: {content.get('text', '')}")
             elif tuple_type == 'table_postamble':
                 results.append('')
-                results.append(content)
+                results.append(f'{' '.join([item.get('text','') for item in content])}') 
+                results.append('')
             elif tuple_type == 'text':
                 results.append(content)
             elif tuple_type == 'textsmall':
