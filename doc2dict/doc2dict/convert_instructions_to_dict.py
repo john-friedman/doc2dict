@@ -271,7 +271,65 @@ def determine_levels(instructions_list, mapping_levels=None,processing_rules=Non
 # MAIN CONVERSION FUNCTION
 # ============================================================================
 
+def remove_page_number_instructions(instructions_list, page_number_regex):
+    """Remove instructions whose text matches page number pattern."""
+    filtered = []
+    for instructions in instructions_list:
+        # Check first instruction (the one that determines classification)
+        first = instructions[0]
+        
+        # Skip if it matches page number pattern
+        if 'text' in first:
+            text = first['text'].strip()
+            if re.match(page_number_regex, text):
+                continue  # Skip this entire instruction group
+        
+        filtered.append(instructions)
+    
+    return filtered
+
+def merge_duplicate_header_rows_down(table_data):
+    """Merge top two rows if top row has consecutive duplicate cells."""
+    if not table_data or len(table_data) < 2:
+        return table_data
+    
+    top_row = table_data[0]
+    
+    # Check if top row has any consecutive duplicates
+    has_consecutive_duplicates = False
+    for i in range(len(top_row) - 1):
+        if top_row[i] == top_row[i + 1]:
+            has_consecutive_duplicates = True
+            break
+    
+    if not has_consecutive_duplicates:
+        return table_data
+    
+    # Merge top two rows
+    second_row = table_data[1]
+    merged_row = []
+    
+    for i in range(len(top_row)):
+        if i < len(second_row):
+            merged_cell = top_row[i] + '\n' + second_row[i]
+        else:
+            merged_cell = top_row[i]
+        merged_row.append(merged_cell)
+    
+    # Return new table with merged row and remaining rows
+    return [merged_row] + table_data[2:]
+
 def convert_instructions_to_dict(instructions_list, mapping_dict=None):
+
+    if mapping_dict and "dct" in mapping_dict and "preprocessing" in mapping_dict["dct"]:
+        preprocessing_rules = mapping_dict["dct"]["preprocessing"]
+        if "page_numbers" in preprocessing_rules:
+            page_number_config = preprocessing_rules["page_numbers"]
+            if "remove_regex" in page_number_config:
+                instructions_list = remove_page_number_instructions(
+                    instructions_list, 
+                    page_number_config["remove_regex"]
+                )
 
     # CHANGE: Split mixed header-content groups first
     instructions_list = split_header_instructions(instructions_list)
@@ -349,7 +407,10 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
     
     # POSTPROCESSING STAGE: Apply table postprocessing rules (if any)
     if mapping_dict and "dct" in mapping_dict and "postprocessing" in mapping_dict["dct"]:
-        table_postprocessing_rules = mapping_dict["dct"]["postprocessing"].get("table", {})
+        postprocessing_rules = mapping_dict["dct"]["postprocessing"]
+
+        table_postprocessing_rules = postprocessing_rules.get("table", {})
+
         if table_postprocessing_rules:
             walk_and_process_tables(document['contents'], table_postprocessing_rules)
 

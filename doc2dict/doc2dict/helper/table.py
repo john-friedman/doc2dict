@@ -1,13 +1,79 @@
 import re
 
-EMPTY_CHARS = ' \t\n\r\xa0'
+EMPTY_CHARS = ' \t\n\r\xa0\u200b'
 EMPTY_TABLE_CHARS = ['', '–', '-']
 LEFT_TABLE_CHARS = ['$','(']
 RIGHT_TABLE_CHARS = [')','%']
 
-# ============================================================================
-# TABLE PROCESSING FUNCTIONS (moved from HTML parser)
-# ============================================================================
+def strip_empty_chars_from_cells(table):
+    """Strip EMPTY_CHARS from beginning and end of all cell text"""
+    if not table:
+        return table
+    
+    stripped_table = []
+    for row in table:
+        stripped_row = []
+        for cell in row:
+            if isinstance(cell, dict):
+                # Copy the cell dict
+                stripped_cell = cell.copy()
+                # Strip text if present
+                if 'text' in stripped_cell:
+                    stripped_cell['text'] = stripped_cell['text'].strip(EMPTY_CHARS)
+                stripped_row.append(stripped_cell)
+            else:
+                # Cell is a string
+                stripped_row.append(cell.strip(EMPTY_CHARS) if isinstance(cell, str) else cell)
+        stripped_table.append(stripped_row)
+    
+    return stripped_table
+
+
+def merge_duplicate_header_rows_down(table):
+    """Merge top two rows if top row has consecutive duplicate cells."""
+    if not table or len(table) < 2:
+        return table
+    
+    top_row = table[0]
+    
+    # Check if top row has any consecutive duplicates
+    has_consecutive_duplicates = False
+    for i in range(len(top_row) - 1):
+        # Extract text for comparison
+        cell1_text = top_row[i].get('text', '') if isinstance(top_row[i], dict) else top_row[i]
+        cell2_text = top_row[i + 1].get('text', '') if isinstance(top_row[i + 1], dict) else top_row[i + 1]
+        
+        if cell1_text == cell2_text:
+            has_consecutive_duplicates = True
+            break
+    
+    if not has_consecutive_duplicates:
+        return table
+    
+    # Merge top two rows
+    second_row = table[1]
+    merged_row = []
+    
+    for i in range(len(top_row)):
+        # Extract text from both rows
+        top_text = top_row[i].get('text', '') if isinstance(top_row[i], dict) else top_row[i]
+        
+        if i < len(second_row):
+            second_text = second_row[i].get('text', '') if isinstance(second_row[i], dict) else second_row[i]
+            merged_text = top_text + '\n' + second_text
+        else:
+            merged_text = top_text
+        
+        # Keep as dict if original was dict, otherwise string
+        if isinstance(top_row[i], dict):
+            merged_cell = top_row[i].copy()
+            merged_cell['text'] = merged_text
+            merged_row.append(merged_cell)
+        else:
+            merged_row.append(merged_text)
+    
+    # Return new table with merged row and remaining rows
+    return [merged_row] + table[2:]
 
 def is_subset(items1, items2, empty_chars):
     """returns true if items1 is a subset of items2"""
@@ -240,6 +306,9 @@ def apply_table_postprocessing(table, rules):
     if not rules:
         return table, "cleaned"
 
+    # Strip empty chars from all cells FIRST
+    table = strip_empty_chars_from_cells(table)
+
     enabled = rules.get("bool", [])
     cleaning_status = "cleaned"
 
@@ -283,9 +352,10 @@ def apply_table_postprocessing(table, rules):
     if "simplify_cells" in enabled:
         table = simplify_table_cells(table)
 
+    if "merge_duplicate_header_rows_down" in enabled:
+        table = merge_duplicate_header_rows_down(table)
+
     return table, cleaning_status
-
-
 def walk_and_process_tables(obj, rules):
     """Recursively walk through document and apply table postprocessing"""
     if isinstance(obj, dict):

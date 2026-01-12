@@ -6,7 +6,7 @@ tag_groups = {
 "underline": ["u", "ins"],
 }
 
-EMPTY_CHARS = ' \t\n\r\xa0'
+EMPTY_CHARS = ' \t\n\r\xa0\u200b'
 EMPTY_TABLE_CHARS = ['', '–', '-']
 
 def remove_leading_empty_instructions(instructions):
