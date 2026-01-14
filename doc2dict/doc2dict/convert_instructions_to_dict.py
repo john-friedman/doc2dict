@@ -158,7 +158,7 @@ def determine_levels(instructions_list, mapping_levels=None,processing_rules=Non
     if mapping_levels is None:
         predicted_header_level = 0
     else:
-        predicted_header_level = max(mapping_levels.keys(), default=0)
+        predicted_header_level = max(mapping_levels.keys(), default=0) + 1
 
 
     # filter out tables, include both text and image instructions
