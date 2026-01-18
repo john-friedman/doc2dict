@@ -160,7 +160,7 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             elif tuple_type == 'table_preamble':
                 results.append('')
                 escaped_texts = [escape_markdown(item.get('text','')) for item in content]
-                results.append(f'*{' '.join(escaped_texts)}*')  # Italicized preamble
+                results.append(f'*{" ".join(escaped_texts)}*')
                 results.append('')
             elif tuple_type == 'table_footnote':
                 escaped_id = escape_markdown(content.get('footnote_id', ''))
@@ -169,7 +169,7 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             elif tuple_type == 'table_postamble':
                 results.append('')
                 escaped_texts = [escape_markdown(item.get('text','')) for item in content]
-                results.append(f'*{' '.join(escaped_texts)}*')   # Italicized postamble
+                results.append(f'*{" ".join(escaped_texts)}*')
                 results.append('')
             elif tuple_type == 'text':
                 results.append(escape_markdown(content))
