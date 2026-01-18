@@ -60,7 +60,11 @@ def merge_duplicate_header_rows_down(table):
         
         if i < len(second_row):
             second_text = second_row[i].get('text', '') if isinstance(second_row[i], dict) else second_row[i]
-            merged_text = top_text + '\n' + second_text
+            # If both cells are the same, keep only one
+            if top_text == second_text:
+                merged_text = top_text
+            else:
+                merged_text = top_text + '\n' + second_text
         else:
             merged_text = top_text
         

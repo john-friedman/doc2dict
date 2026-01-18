@@ -304,37 +304,6 @@ def remove_matching_instructions(instructions_list, regex_patterns):
     
     return filtered
 
-def merge_duplicate_header_rows_down(table_data):
-    """Merge top two rows if top row has consecutive duplicate cells."""
-    if not table_data or len(table_data) < 2:
-        return table_data
-    
-    top_row = table_data[0]
-    
-    # Check if top row has any consecutive duplicates
-    has_consecutive_duplicates = False
-    for i in range(len(top_row) - 1):
-        if top_row[i] == top_row[i + 1]:
-            has_consecutive_duplicates = True
-            break
-    
-    if not has_consecutive_duplicates:
-        return table_data
-    
-    # Merge top two rows
-    second_row = table_data[1]
-    merged_row = []
-    
-    for i in range(len(top_row)):
-        if i < len(second_row):
-            merged_cell = top_row[i] + '\n' + second_row[i]
-        else:
-            merged_cell = top_row[i]
-        merged_row.append(merged_cell)
-    
-    # Return new table with merged row and remaining rows
-    return [merged_row] + table_data[2:]
-
 def convert_instructions_to_dict(instructions_list, mapping_dict=None):
 
     if mapping_dict and "dct" in mapping_dict and "preprocessing" in mapping_dict["dct"]:
