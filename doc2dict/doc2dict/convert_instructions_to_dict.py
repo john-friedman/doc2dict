@@ -258,6 +258,7 @@ def determine_levels(instructions_list, mapping_levels=None,processing_rules=Non
                 if any([header.get(attr,False) for attr in LIKELY_HEADER_ATTRIBUTES]) or big_script[idx]:
                     level = create_level(predicted_header_level, 'predicted header', '', attributes)
 
+
         if level is None:
             level = create_level(-1, 'text')
         
@@ -267,21 +268,36 @@ def determine_levels(instructions_list, mapping_levels=None,processing_rules=Non
     levels = determine_predicted_header_levels(levels)
     return levels
 
-# ============================================================================
-# MAIN CONVERSION FUNCTION
-# ============================================================================
-
-def remove_page_number_instructions(instructions_list, page_number_regex):
-    """Remove instructions whose text matches page number pattern."""
+def remove_matching_instructions(instructions_list, regex_patterns):
+    """Remove instructions whose text matches regex patterns and meets optional conditions."""
     filtered = []
     for instructions in instructions_list:
         # Check first instruction (the one that determines classification)
         first = instructions[0]
         
-        # Skip if it matches page number pattern
+        # Skip if it matches any pattern
         if 'text' in first:
-            text = first['text'].strip()
-            if re.match(page_number_regex, text):
+            text = first['text'].strip().lower()
+            
+            # Check each pattern/filter
+            should_remove = False
+            for pattern_config in regex_patterns:
+                regex = pattern_config['regex']
+                has_href_requirement = pattern_config.get('has_href', False)
+                
+                # Check if text matches regex
+                if re.match(regex, text):
+                    # If has_href is required, check for it
+                    if has_href_requirement:
+                        if 'href' in first:
+                            should_remove = True
+                            break
+                    else:
+                        # No href requirement, just regex match is enough
+                        should_remove = True
+                        break
+            
+            if should_remove:
                 continue  # Skip this entire instruction group
         
         filtered.append(instructions)
@@ -322,17 +338,15 @@ def merge_duplicate_header_rows_down(table_data):
 def convert_instructions_to_dict(instructions_list, mapping_dict=None):
 
     if mapping_dict and "dct" in mapping_dict and "preprocessing" in mapping_dict["dct"]:
-        preprocessing_rules = mapping_dict["dct"]["preprocessing"]
-        if "page_numbers" in preprocessing_rules:
-            page_number_config = preprocessing_rules["page_numbers"]
-            if "remove_regex" in page_number_config:
-                instructions_list = remove_page_number_instructions(
+            preprocessing_rules = mapping_dict["dct"]["preprocessing"]
+            if "remove_strings" in preprocessing_rules:
+                instructions_list = remove_matching_instructions(
                     instructions_list, 
-                    page_number_config["remove_regex"]
+                    preprocessing_rules["remove_strings"]
                 )
 
-    # CHANGE: Split mixed header-content groups first
     instructions_list = split_header_instructions(instructions_list)
+
     
     # Get pre-calculated levels for each instruction
     mapping_levels = mapping_dict.get("levels", None) if mapping_dict else None
