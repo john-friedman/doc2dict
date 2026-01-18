@@ -374,19 +374,7 @@ def walk_and_process_tables(obj, rules):
             walk_and_process_tables(item, rules)
 
 
-def collect_table_footnotes(parent_contents, table_key, regex_pattern):
-    """
-    Collect footnotes that follow a table and move them into the table's footnotes array.
-    
-    Args:
-        parent_contents: The contents dictionary containing the table
-        table_key: The key/index of the table in parent_contents
-        regex_pattern: Regex pattern to match footnote text
-    
-    Returns:
-        None (modifies parent_contents in place)
-    """
-
+def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_next_n_lines=1):
     
     # Get all keys sorted numerically
     try:
@@ -404,46 +392,90 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern):
     footnotes = []
     keys_to_remove = []
     
-    for i in range(table_index + 1, len(sorted_keys)):
+    i = table_index + 1
+    while i < len(sorted_keys):
         key = sorted_keys[i]
         item = parent_contents[key]
         
         # Only check text and textsmall items
-        if isinstance(item, dict):
-            matched = False
-            
-            # Check if it's a text or textsmall item
-            if 'text' in item:
-                text_content = item['text']
-                match = re.match(regex_pattern, text_content.strip())
-                if match:
-                    footnote_id = match.group(1)  # Get the captured group
-                    text_without_id = text_content.strip()[len(match.group(0)):]  # Remove the ID from text
-                    footnotes.append({
-                        'text': text_without_id.strip(),
-                        'footnote_id': footnote_id
-                    })
-                    keys_to_remove.append(key)
-                    matched = True
-            elif 'textsmall' in item:
-                text_content = item['textsmall']
-                match = re.match(regex_pattern, text_content.strip())
-                if match:
-                    footnote_id = match.group(1)  # Get the captured group
-                    text_without_id = text_content.strip()[len(match.group(0)):]  # Remove the ID from text
-                    footnotes.append({
-                        'textsmall': text_without_id.strip(),
-                        'footnote_id': footnote_id
-                    })
-                    keys_to_remove.append(key)
-                    matched = True
-            
-            # If this item didn't match, stop collecting
-            if not matched:
-                break
-        else:
+        if not isinstance(item, dict):
             # Hit a non-dict item, stop collecting
             break
+            
+        matched = False
+        text_content = None
+        content_type = None
+        
+        # Check if it's a text or textsmall item
+        if 'text' in item:
+            text_content = item['text']
+            content_type = 'text'
+        elif 'textsmall' in item:
+            text_content = item['textsmall']
+            content_type = 'textsmall'
+        
+        if text_content is not None:
+            match = re.match(regex_pattern, text_content.strip())
+            if match:
+                # Found a footnote marker
+                footnote_id = match.group(1)
+                text_without_id = text_content.strip()[len(match.group(0)):]
+                
+                # Initialize footnote entry
+                current_footnote = {
+                    content_type: text_without_id.strip(),
+                    'footnote_id': footnote_id
+                }
+                keys_to_remove.append(key)
+                
+                # Look ahead for continuation text
+                lookahead_count = 0
+                j = i + 1
+                
+                while j < len(sorted_keys) and lookahead_count < check_next_n_lines:
+                    next_key = sorted_keys[j]
+                    next_item = parent_contents[next_key]
+                    
+                    if not isinstance(next_item, dict):
+                        break
+                    
+                    next_text = None
+                    next_type = None
+                    
+                    if 'text' in next_item:
+                        next_text = next_item['text']
+                        next_type = 'text'
+                    elif 'textsmall' in next_item:
+                        next_text = next_item['textsmall']
+                        next_type = 'textsmall'
+                    
+                    if next_text is not None:
+                        # Check if this is a new footnote
+                        next_match = re.match(regex_pattern, next_text.strip())
+                        if next_match:
+                            # This is a new footnote, stop concatenating
+                            break
+                        else:
+                            # This is continuation text, concatenate it
+                            current_footnote[content_type] += ' ' + next_text.strip()
+                            keys_to_remove.append(next_key)
+                            lookahead_count += 1
+                            j += 1
+                    else:
+                        # Not a text item, stop looking ahead
+                        break
+                
+                footnotes.append(current_footnote)
+                matched = True
+                # Skip past the items we just processed
+                i = j
+                continue
+        
+        # If this item didn't match, stop collecting
+        if not matched:
+            break
+        
+        i += 1
     
     # Add footnotes to the table if any were collected
     if footnotes:
@@ -454,18 +486,8 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern):
             del parent_contents[key]
 
         return keys_to_remove
-
-
-def apply_table_annotations(obj, rules, parent=None, parent_key=None):
-    """
-    Recursively walk through document and collect preamble, footnotes, and postamble for tables.
     
-    Args:
-        obj: Current object being processed
-        rules: Table postprocessing rules dict
-        parent: Parent object (for tracking)
-        parent_key: Key in parent object (for tracking)
-    """
+def apply_table_annotations(obj, rules, parent=None, parent_key=None):
     if isinstance(obj, dict):
         # Check if this dict contains a table
         if 'table' in obj and parent is not None and parent_key is not None:
@@ -479,7 +501,8 @@ def apply_table_annotations(obj, rules, parent=None, parent_key=None):
             footnote_keys = []
             if "footnotes" in rules:
                 footnote_regex = rules["footnotes"]["regex"]
-                footnote_keys = collect_table_footnotes(parent, parent_key, footnote_regex)
+                check_next_n = rules["footnotes"].get("check_next_n_lines", 2)  # Default to 2
+                footnote_keys = collect_table_footnotes(parent, parent_key, footnote_regex, check_next_n)
             
             # 3. Collect postamble (if configured)
             if "postamble" in rules:
