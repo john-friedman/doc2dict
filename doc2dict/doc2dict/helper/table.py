@@ -373,6 +373,49 @@ def walk_and_process_tables(obj, rules):
         for item in obj:
             walk_and_process_tables(item, rules)
 
+def extract_footnotes_from_table(table_data, regex_pattern):
+    if not table_data:
+        return None
+    
+    # Check if all rows have exactly 2 columns
+    if not all(len(row) == 2 for row in table_data):
+        return None
+    
+    footnotes = []
+    
+    for row in table_data:
+        first_cell = row[0]
+        second_cell = row[1]
+        
+        # Extract text from first cell
+        if isinstance(first_cell, dict):
+            first_text = first_cell.get('text', '')
+        else:
+            first_text = first_cell
+        
+        # Check if first cell matches footnote pattern
+        match = re.match(regex_pattern, first_text.strip())
+        if not match:
+            # First column doesn't match - not a footnote table
+            return None
+        
+        # Extract footnote_id from match
+        footnote_id = match.group(1)
+        
+        # Extract text from second cell
+        if isinstance(second_cell, dict):
+            footnote_text = second_cell.get('text', '')
+        else:
+            footnote_text = second_cell
+        
+        # Create footnote entry
+        footnotes.append({
+            'text': footnote_text.strip(),
+            'footnote_id': footnote_id
+        })
+    
+    return footnotes
+
 
 def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_next_n_lines=1):
     
@@ -413,6 +456,20 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
         elif 'textsmall' in item:
             text_content = item['textsmall']
             content_type = 'textsmall'
+        elif 'table' in item:
+            # Check if this is a footnote table
+            table_footnotes = extract_footnotes_from_table(item['table']['data'], regex_pattern)
+            
+            if table_footnotes is not None:
+                # Valid footnote table - add all footnotes
+                footnotes.extend(table_footnotes)
+                keys_to_remove.append(key)
+                matched = True
+                i += 1
+                continue
+            else:
+                # Not a footnote table - regular table, stop collecting
+                break
         
         if text_content is not None:
             match = re.match(regex_pattern, text_content.strip())

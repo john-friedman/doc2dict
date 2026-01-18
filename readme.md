@@ -47,8 +47,10 @@ from doc2dict import html2dict, visualize_dict
 with open('apple_10k_2024.html','r') as f:
     content = f.read()
 
-# Parse 
+# Parse wihout a mapping dict
 dct = html2dict(content,mapping_dict=None)
+# Parse using the standard mapping dict
+dct = html2dict(content)
 
 # Visualize Parsing
 visualize_dict(dct)
@@ -56,7 +58,7 @@ visualize_dict(dct)
 
 ### Mapping Dicts
 
-Mapping dictionaries are rules that you pass into the parser to tweak its functionality. 
+Mapping dictionaries are rules that you pass into the parser to tweak its functionality. You can view existing mapping dicts [here](doc2dict/doc2dict/mapping_dicts/).
 
 The below mapping dict tells the parser that "item" header should appear in the nesting of "part" headers. Also there are a bunch of other rules that should be kept by default. You may want to tweak Footnote regex.
 

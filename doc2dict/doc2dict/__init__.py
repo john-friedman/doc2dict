@@ -12,3 +12,5 @@ from .pdf.pdf2dict import pdf2dict
 
 from .utils.utils import get_title
 from .utils.format_dict import unnest_dict, flatten_dict
+
+from .mapping_dicts.standard_config import STANDARD_CONFIG
