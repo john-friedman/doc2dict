@@ -191,13 +191,15 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
                 results.extend(_format_table(content))
             elif tuple_type == 'table_preamble':
                 results.append('')
-                results.append(f'{' '.join([item.get('text','') for item in content])}')
+                joined_text = ' '.join([item.get('text','') for item in content])
+                results.append(joined_text)
                 results.append('')
             elif tuple_type == 'table_footnote':
                 results.append(f"{content.get('footnote_id', '')}: {content.get('text', '')}")
             elif tuple_type == 'table_postamble':
                 results.append('')
-                results.append(f'{' '.join([item.get('text','') for item in content])}') 
+                joined_text = ' '.join([item.get("text","") for item in content])
+                results.append(joined_text)
                 results.append('')
             elif tuple_type == 'text':
                 results.append(content)
