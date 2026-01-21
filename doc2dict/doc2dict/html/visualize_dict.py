@@ -47,12 +47,41 @@ def visualize_dict(data_dict, filename='document_visualization.html', open_brows
                 font-size: 1.2em;
                 color: #555;
             }
+            
+            .table-wrapper {
+                margin: 15px 0;
+            }
+            
+            .table-title-bar {
+                background-color: #4a90e2;
+                color: white;
+                padding: 12px 15px;
+                font-weight: bold;
+                font-size: 1.05em;
+                border-radius: 5px 5px 0 0;
+                border: 2px solid #4a90e2;
+                border-bottom: none;
+            }
+            
+            .table-title-label {
+                font-size: 0.85em;
+                font-style: italic;
+                opacity: 0.9;
+                margin-left: 8px;
+                font-weight: normal;
+            }
+            
             table { 
                 border-collapse: collapse; 
                 width: 100%; 
-                margin: 15px 0; 
+                margin: 0; 
                 background-color: white;
             }
+            
+            .table-wrapper table {
+                border-radius: 0 0 5px 5px;
+            }
+            
             table, th, td { 
                 border: 2px solid #ddd; 
             }
@@ -101,13 +130,16 @@ def visualize_dict(data_dict, filename='document_visualization.html', open_brows
                 margin: 15px 0;
             }
             .table-footnotes {
-                margin-top: 5px;
-                margin-bottom: 15px;
+                margin-top: 0;
+                margin-bottom: 0;
                 padding-left: 10px;
                 border-left: 3px solid #ddd;
+                border-right: 2px solid #ddd;
+                border-bottom: 2px solid #ddd;
                 background-color: #fafafa;
                 padding: 10px;
                 font-size: 0.9em;
+                border-radius: 0 0 5px 5px;
             }
             .footnote {
                 margin: 5px 0;
@@ -115,20 +147,29 @@ def visualize_dict(data_dict, filename='document_visualization.html', open_brows
             }
                 
             .table-preamble {
-                margin-bottom: 10px;
-                padding: 10px;
+                margin-bottom: 0;
+                padding: 10px 15px;
                 background-color: #f0f8ff;
-                border-left: 3px solid #4a90e2;
+                border-left: 2px solid #ddd;
+                border-right: 2px solid #ddd;
+                border-top: 2px solid #ddd;
                 font-size: 0.95em;
                 font-style: italic;
             }
 
+            .table-preamble-with-title {
+                border-top: none;
+            }
+
             .table-postamble {
-                margin-top: 10px;
-                padding: 10px;
+                margin-top: 0;
+                padding: 10px 15px;
                 background-color: #fff8f0;
-                border-left: 3px solid #e2a04a;
+                border-left: 2px solid #ddd;
+                border-right: 2px solid #ddd;
+                border-bottom: 2px solid #ddd;
                 font-size: 0.95em;
+                border-radius: 0 0 5px 5px;
             }
 
             .preamble-item, .postamble-item {
@@ -258,9 +299,23 @@ def process_table_cell(cell):
 def process_table(content, html):
     """Convert table data to HTML table"""
     
-    # Process preamble if present (BEFORE table)
+    # Wrap entire table structure
+    html.append('<div class="table-wrapper">')
+    
+    # Display table title if present (FIRST, before everything)
+    has_title = 'title' in content and content['title']
+    if has_title:
+        html.append('<div class="table-title-bar">')
+        html.append(content['title'])
+        html.append('<span class="table-title-label">(inherited)</span>')
+        html.append('</div>')
+    
+    # Process preamble if present (AFTER title)
     if 'preamble' in content:
-        html.append('<div class="table-preamble">')
+        preamble_class = 'table-preamble'
+        if has_title:
+            preamble_class += ' table-preamble-with-title'
+        html.append(f'<div class="{preamble_class}">')
         for preamble_item in content['preamble']:
             if 'text' in preamble_item:
                 html.append(f'<p class="preamble-item">{preamble_item["text"]}</p>')
@@ -318,3 +373,6 @@ def process_table(content, html):
             elif 'textsmall' in postamble_item:
                 html.append(f'<p class="postamble-item textsmall">{postamble_item["textsmall"]}</p>')
         html.append('</div>')
+    
+    # Close table wrapper
+    html.append('</div>')

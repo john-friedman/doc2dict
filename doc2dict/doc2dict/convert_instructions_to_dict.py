@@ -1,6 +1,6 @@
 import re
 from importlib.metadata import version
-from .helper.table import walk_and_process_tables, apply_table_annotations, remove_single_row_tables
+from .helper.table import walk_and_process_tables, apply_table_annotations, remove_single_row_tables, inherit_section_titles
 __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
@@ -386,7 +386,7 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
                 elif 'image' in instruction:
                     current_section['contents'][idx] = {'image': instruction['image']}
                 elif 'table' in instruction:
-                    current_section['contents'][idx] = {'table': {'data': instruction['table']}}
+                    current_section['contents'][idx] = {'table': {'title': '', 'data': instruction['table']}}
     
     # POSTPROCESSING STAGE: Apply table postprocessing rules (if any)
     if mapping_dict and "dct" in mapping_dict and "postprocessing" in mapping_dict["dct"]:
@@ -403,6 +403,10 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
 
             if "footnotes" in table_postprocessing_rules:
                 apply_table_annotations(document['contents'], table_postprocessing_rules)
+
+     
+            if "inherit_section_title" in table_postprocessing_rules.get("bool", []):
+                inherit_section_titles(document['contents'])
 
     # Create final result with metadata
     result = {

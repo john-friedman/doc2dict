@@ -761,3 +761,41 @@ def remove_single_row_tables(obj, parent=None, parent_key=None):
     elif isinstance(obj, list):
         for item in obj:
             remove_single_row_tables(item, None, None)
+
+def inherit_section_titles(obj):
+    """
+    Walk through document and add section titles to tables when a section contains exactly one table.
+    
+    Args:
+        obj: Document structure to process
+    """
+    if isinstance(obj, dict):
+        # Check if this is a section (has title, class, and contents)
+        if 'title' in obj and 'class' in obj and 'contents' in obj:
+            section_title = obj['title']
+            contents = obj['contents']
+            
+            # Count tables in this section's contents
+            tables = []
+            for key, value in contents.items():
+                if isinstance(value, dict) and 'table' in value:
+                    tables.append((key, value))
+            
+            # If exactly one table, add the section title to it
+            if len(tables) == 1:
+                key, table_item = tables[0]
+                # Only add title if it doesn't already have one
+                if table_item['table']['title'] == '':
+                    table_item['table']['title'] = section_title
+            
+            # Recurse into contents to handle nested sections
+            for value in contents.values():
+                inherit_section_titles(value)
+        else:
+            # Not a section, recurse into all values
+            for value in obj.values():
+                inherit_section_titles(value)
+    
+    elif isinstance(obj, list):
+        for item in obj:
+            inherit_section_titles(item)

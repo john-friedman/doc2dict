@@ -34,7 +34,8 @@ STANDARD_CONFIG = {
                     "remove_subset_columns_right_to_left",
                     "simplify_cells",
                     "disallow_single_row_tables",
-                    "merge_duplicate_header_rows_down"
+                    "merge_duplicate_header_rows_down",
+                    "inherit_section_title"
                 ],
                 "footnotes": {
                     "regex": r"^(\*|\(.{1,2}\)|\d+|†+)",
