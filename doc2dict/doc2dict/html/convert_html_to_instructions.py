@@ -681,16 +681,19 @@ def convert_html_to_instructions(root):
                             matrix[r][c] = cell_data
 
                     # Detect single-row tables (fake tables)
-                    if len(matrix) == 1:
-                        # Combine all cells into one instruction block
-                        all_cells = []
-                        for cell in matrix[0]:
-                            if 'text' in cell and cell['text'].strip(EMPTY_CHARS):
-                                all_cells.append(cell)
-                        if all_cells:
-                            instructions_list.append(all_cells)
+                    # Count meaningful rows
+                    meaningful_rows = []
+                    for row in matrix:
+                        row_cells = [cell for cell in row 
+                                    if 'text' in cell and cell['text'].strip(EMPTY_CHARS)]
+                        if row_cells:
+                            meaningful_rows.append(row_cells)
+
+                    # If only one meaningful row, treat as fake table
+                    if len(meaningful_rows) == 1:
+                        instructions_list.append(meaningful_rows[0])
                     else:
-                        # Multi-row table - add as-is
+                        # Multi-row table
                         instructions_list.append([{'table': matrix}])
 
                 # Reset table state

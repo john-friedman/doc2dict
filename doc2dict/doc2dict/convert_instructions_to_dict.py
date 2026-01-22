@@ -1,6 +1,8 @@
 import re
 from importlib.metadata import version
 from .helper.table import walk_and_process_tables, apply_table_annotations, remove_single_row_tables, inherit_section_titles
+# move to one place
+EMPTY_CHARS = ' \t\n\r\xa0\u200b'
 __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
@@ -268,51 +270,65 @@ def determine_levels(instructions_list, mapping_levels=None,processing_rules=Non
     levels = determine_predicted_header_levels(levels)
     return levels
 
-def remove_matching_instructions(instructions_list, regex_patterns):
-    """Remove instructions whose text matches regex patterns and meets optional conditions."""
+def remove_matching_instructions(instructions_list, regex_patterns, repetitive_texts=None):
+
     filtered = []
     for instructions in instructions_list:
-        # Check first instruction (the one that determines classification)
-        first = instructions[0]
+        # Filter instructions within the group
+        kept_instructions = []
         
-        # Skip if it matches any pattern
-        if 'text' in first:
-            text = first['text'].strip().lower()
+        for instruction in instructions:
+            if 'text' not in instruction:
+                kept_instructions.append(instruction)
+                continue
             
-            # Check each pattern/filter
+            text = instruction['text'].strip().lower()
+            if repetitive_texts and text in repetitive_texts:
+                should_remove = True
+                continue
+
             should_remove = False
+            
             for pattern_config in regex_patterns:
                 regex = pattern_config['regex']
                 has_href_requirement = pattern_config.get('has_href', False)
                 
-                # Check if text matches regex
                 if re.match(regex, text):
-                    # If has_href is required, check for it
                     if has_href_requirement:
-                        if 'href' in first:
+                        if 'href' in instruction:
                             should_remove = True
                             break
                     else:
-                        # No href requirement, just regex match is enough
                         should_remove = True
                         break
             
-            if should_remove:
-                continue  # Skip this entire instruction group
+            if not should_remove:
+                kept_instructions.append(instruction)
         
-        filtered.append(instructions)
+        # Only add group if it has remaining instructions
+        if kept_instructions:
+            filtered.append(kept_instructions)
     
     return filtered
 
 def convert_instructions_to_dict(instructions_list, mapping_dict=None):
 
     if mapping_dict and "dct" in mapping_dict and "preprocessing" in mapping_dict["dct"]:
-            preprocessing_rules = mapping_dict["dct"]["preprocessing"]
-            if "remove_strings" in preprocessing_rules:
-                instructions_list = remove_matching_instructions(
-                    instructions_list, 
-                    preprocessing_rules["remove_strings"]
-                )
+        preprocessing_rules = mapping_dict["dct"]["preprocessing"]
+        
+        # NEW: Identify repetitive text
+        repetitive_texts = None
+        if "remove_repetitive_text" in preprocessing_rules:
+            threshold = preprocessing_rules["remove_repetitive_text"]["threshold"]
+            repetitive_texts = identify_repetitive_text(instructions_list, threshold)
+        
+        # Apply removal
+        if "remove_strings" in preprocessing_rules:
+            instructions_list = remove_matching_instructions(
+                instructions_list, 
+                preprocessing_rules["remove_strings"],
+                repetitive_texts  # ← NEW parameter
+            )
 
     instructions_list = split_header_instructions(instructions_list)
 
@@ -386,7 +402,15 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
                 elif 'image' in instruction:
                     current_section['contents'][idx] = {'image': instruction['image']}
                 elif 'table' in instruction:
-                    current_section['contents'][idx] = {'table': {'title': '', 'data': instruction['table']}}
+                    current_section['contents'][idx] = {
+                        'table': {
+                            'title':None, 
+                            'data': instruction['table'],
+                            'preamble': None,
+                            'footnotes': [],
+                            'postamble': None
+                        }
+                    }
     
     # POSTPROCESSING STAGE: Apply table postprocessing rules (if any)
     if mapping_dict and "dct" in mapping_dict and "postprocessing" in mapping_dict["dct"]:
@@ -420,3 +444,40 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
     
     remove_empty_contents(result)
     return result
+
+def identify_repetitive_text(instructions_list, threshold):
+    """
+    Identify text that appears repetitively across instruction groups.
+    
+    Args:
+        instructions_list: List of instruction groups
+        threshold: Minimum number of occurrences to be considered repetitive
+        
+    Returns:
+        Set of lowercase, stripped text strings that appear >= threshold times
+    """
+    text_counts = {}
+    
+    # Count occurrences of each text string
+    for instructions in instructions_list:
+        for instruction in instructions:
+            if 'text' in instruction:
+                # Normalize: strip whitespace and convert to lowercase
+                text = instruction['text'].strip(EMPTY_CHARS).lower()
+                
+                # Skip empty strings
+                if not text:
+                    continue
+                
+                # Count this text
+                if text not in text_counts:
+                    text_counts[text] = 0
+                text_counts[text] += 1
+    
+    # Build set of texts that meet threshold
+    repetitive_texts = set()
+    for text, count in text_counts.items():
+        if count >= threshold:
+            repetitive_texts.add(text)
+    
+    return repetitive_texts

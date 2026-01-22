@@ -88,8 +88,10 @@ def unnest_dict(dct):
                 # Handle both old format (raw list) and new format (dict with 'data')
                 if isinstance(table_dict, dict):
                     # New format - create separate tuples for each component
+
+                    if 'title' in table_dict and table_dict['title'] is not None:
+                        result.append((current_id, 'table_title', table_dict['title'], level))
                     
-                    # Preamble comes first if it exists
                     if 'preamble' in table_dict:
                         result.append((current_id, 'table_preamble', table_dict['preamble'], level))
                     
@@ -158,25 +160,27 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             if tuple_type == 'table_data':
                 results.extend(_format_table(content))
             elif tuple_type == 'table_preamble':
-                results.append('')
-                escaped_texts = [escape_markdown(item.get('text','')) for item in content]
-                results.append(f'*{" ".join(escaped_texts)}*')
-                results.append('')
+                if content is not None:  # ADD THIS CHECK
+                    results.append('')
+                    escaped_texts = [escape_markdown(item.get('text','')) for item in content]
+                    results.append(f'*{" ".join(escaped_texts)}*')
+                    results.append('')
             elif tuple_type == 'table_footnote':
                 escaped_id = escape_markdown(content.get('footnote_id', ''))
                 escaped_text = escape_markdown(content.get('text', ''))
                 results.append(f"- **{escaped_id}**: {escaped_text}")
             elif tuple_type == 'table_postamble':
-                results.append('')
-                escaped_texts = [escape_markdown(item.get('text','')) for item in content]
-                results.append(f'*{" ".join(escaped_texts)}*')
-                results.append('')
+                if content is not None:  # ADD THIS CHECK
+                    results.append('')
+                    escaped_texts = [escape_markdown(item.get('text','')) for item in content]
+                    results.append(f'*{" ".join(escaped_texts)}*')
+                    results.append('')
             elif tuple_type == 'text':
                 results.append(escape_markdown(content))
             elif tuple_type == 'textsmall':
                 results.append(f'<sub>{escape_markdown(content)}</sub>')
             elif tuple_type == 'title':
-                results.append(_format_title(content, level))  # Escape inside _format_title
+                results.append(_format_title(content, level))
         
         return '\n'.join(results)
     
@@ -190,17 +194,19 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
             if tuple_type == 'table_data':
                 results.extend(_format_table(content))
             elif tuple_type == 'table_preamble':
-                results.append('')
-                joined_text = ' '.join([item.get('text','') for item in content])
-                results.append(joined_text)
-                results.append('')
+                if content is not None:  # ADD THIS CHECK
+                    results.append('')
+                    joined_text = ' '.join([item.get('text','') for item in content])
+                    results.append(joined_text)
+                    results.append('')
             elif tuple_type == 'table_footnote':
                 results.append(f"{content.get('footnote_id', '')}: {content.get('text', '')}")
             elif tuple_type == 'table_postamble':
-                results.append('')
-                joined_text = ' '.join([item.get("text","") for item in content])
-                results.append(joined_text)
-                results.append('')
+                if content is not None:  # ADD THIS CHECK
+                    results.append('')
+                    joined_text = ' '.join([item.get("text","") for item in content])
+                    results.append(joined_text)
+                    results.append('')
             elif tuple_type == 'text':
                 results.append(content)
             elif tuple_type == 'textsmall':

@@ -296,6 +296,7 @@ def process_table_cell(cell):
         # Cell is a string or other simple type
         return str(cell)
 
+
 def process_table(content, html):
     """Convert table data to HTML table"""
     
@@ -311,7 +312,7 @@ def process_table(content, html):
         html.append('</div>')
     
     # Process preamble if present (AFTER title)
-    if 'preamble' in content:
+    if 'preamble' in content and content['preamble'] is not None:  # ADD: and content['preamble'] is not None
         preamble_class = 'table-preamble'
         if has_title:
             preamble_class += ' table-preamble-with-title'
@@ -355,7 +356,7 @@ def process_table(content, html):
     html.append('</table>')
     
     # Process footnotes if present (AFTER table)
-    if 'footnotes' in content:
+    if 'footnotes' in content and content['footnotes'] is not None:  # ADD: and content['footnotes'] is not None
         html.append('<div class="table-footnotes">')
         for footnote in content['footnotes']:
             if 'text' in footnote:
@@ -365,7 +366,7 @@ def process_table(content, html):
         html.append('</div>')
     
     # Process postamble if present (AFTER footnotes)
-    if 'postamble' in content:
+    if 'postamble' in content and content['postamble'] is not None:  # ADD: and content['postamble'] is not None
         html.append('<div class="table-postamble">')
         for postamble_item in content['postamble']:
             if 'text' in postamble_item:

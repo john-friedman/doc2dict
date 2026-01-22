@@ -12,7 +12,10 @@ STANDARD_CONFIG = {
                 {"regex":r"^_+$"}, 
                 {"regex":r"^●(\s*●)*"},
                 {"regex": r"^table\s+of\s+contents$", "has_href":True}
-            ]
+            ],
+            "remove_repetitive_text" : {
+                "threshold" : 20
+            }
         },
         "processing": {
             "table": {
