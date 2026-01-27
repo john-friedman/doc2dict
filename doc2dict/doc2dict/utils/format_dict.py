@@ -64,57 +64,54 @@ def _format_title(text, level):
     return "#" * markdown_level + " " + text
 
 
-def unnest_dict(dct):
+def convert_dict_to_data_tuples(dct):
     result = []
     
     def process_content(content, current_id=None, level=0):
         if not isinstance(content, dict):
             return
+        
+        # Get the class if it exists
+        content_class = content.get('class', None)
             
         # Process title, text, textsmall directly
         for key in ['title', 'text', 'textsmall']:
             if key in content:
-                # skip introduction filler
-                if current_id == -1:
-                    pass
-                else:
-                    result.append((current_id, key, content[key], level))
+                result.append((current_id, key, content[key], level, content_class))
         
         # Process table - flatten all components into separate tuples
         if 'table' in content:
-            if current_id != -1:
-                table_dict = content['table']
-                
-                # Handle both old format (raw list) and new format (dict with 'data')
-                if isinstance(table_dict, dict):
-                    # New format - create separate tuples for each component
+            table_dict = content['table']
+            
+            # Handle both old format (raw list) and new format (dict with 'data')
+            if isinstance(table_dict, dict):
 
-                    if 'title' in table_dict and table_dict['title'] is not None:
-                        result.append((current_id, 'table_title', table_dict['title'], level))
-                    
-                    if 'preamble' in table_dict:
-                        result.append((current_id, 'table_preamble', table_dict['preamble'], level))
-                    
-                    # Main table data
-                    if 'data' in table_dict:
-                        result.append((current_id, 'table_data', table_dict['data'], level))
-                    
-                    # Footnotes (could be a list, so add each one)
-                    if 'footnotes' in table_dict:
-                        footnotes = table_dict['footnotes']
-                        if isinstance(footnotes, list):
-                            for footnote in footnotes:
-                                result.append((current_id, 'table_footnote', footnote, level))
-                        else:
-                            # Single footnote as string
-                            result.append((current_id, 'table_footnote', footnotes, level))
-                    
-                    # Postamble comes last if it exists
-                    if 'postamble' in table_dict:
-                        result.append((current_id, 'table_postamble', table_dict['postamble'], level))
-                else:
-                    # Old format - just the raw list, now using 'table_data' for consistency
-                    result.append((current_id, 'table_data', table_dict, level))
+                if 'title' in table_dict and table_dict['title'] is not None:
+                    result.append((current_id, 'table_title', table_dict['title'], level, content_class))
+                
+                if 'preamble' in table_dict and table_dict['preamble'] is not None:
+                    result.append((current_id, 'table_preamble', table_dict['preamble'], level, content_class))
+                
+                # Main table data - always include if present
+                if 'data' in table_dict:
+                    result.append((current_id, 'table_data', table_dict['data'], level, content_class))
+                
+                # Footnotes - only add if list is not empty
+                if 'footnotes' in table_dict:
+                    footnotes = table_dict['footnotes']
+                    if isinstance(footnotes, list) and len(footnotes) > 0:
+                        for footnote in footnotes:
+                            result.append((current_id, 'table_footnote', footnote, level, content_class))
+                    elif not isinstance(footnotes, list) and footnotes is not None:
+                        # Single footnote as string (non-list)
+                        result.append((current_id, 'table_footnote', footnotes, level, content_class))
+                
+                # Postamble - only add if not None
+                if 'postamble' in table_dict and table_dict['postamble'] is not None:
+                    result.append((current_id, 'table_postamble', table_dict['postamble'], level, content_class))
+            else:
+                # Old format - just the raw list, now using 'table_data' for consistency
+                result.append((current_id, 'table_data', table_dict, level, content_class))
         
         # Process contents recursively in numeric order
         contents = content.get('contents', {})
@@ -134,6 +131,198 @@ def unnest_dict(dct):
     return result
 
 
+# Backward compatibility alias
+unnest_dict = convert_dict_to_data_tuples
+
+
+def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
+    """
+    Convert a flat list of tuples back into a nested dictionary structure.
+    
+    Args:
+        tuples_list: List of tuples in format (section_id, content_type, content_value, level, class)
+        mapping_dict: Optional mapping dictionary with 'levels' key containing regex patterns
+    
+    Returns:
+        Nested dictionary with 'document' structure
+    """
+    if not tuples_list:
+        return {'document': {}}
+    
+    # Extract mapping_levels if provided
+    mapping_levels = mapping_dict.get("levels", None) if mapping_dict else None
+    
+    # Build a tree structure to track sections and their hierarchy
+    sections = {}
+    
+    for tuple_data in tuples_list:
+        section_id = tuple_data[0]
+        content_type = tuple_data[1]
+        content_value = tuple_data[2]
+        level = tuple_data[3]
+        content_class = tuple_data[4] if len(tuple_data) > 4 else None
+        
+        # Initialize section if it doesn't exist
+        if section_id not in sections:
+            sections[section_id] = {
+                'level': level,
+                'content': {},
+                'class': content_class,
+                'title': None,  # Store title for standardization
+                'children': []
+            }
+        
+        section = sections[section_id]
+        
+        # Capture title for later standardization
+        if content_type == 'title':
+            section['content']['title'] = content_value
+            section['title'] = content_value  # Store for standardization logic
+        elif content_type == 'text':
+            section['content']['text'] = content_value
+        elif content_type == 'textsmall':
+            section['content']['textsmall'] = content_value
+        elif content_type.startswith('table'):
+            # Initialize table dict if not present
+            if 'table' not in section['content']:
+                section['content']['table'] = {}
+            
+            if content_type == 'table_title':
+                section['content']['table']['title'] = content_value
+            elif content_type == 'table_preamble':
+                section['content']['table']['preamble'] = content_value
+            elif content_type == 'table_data':
+                section['content']['table']['data'] = content_value
+            elif content_type == 'table_footnote':
+                # Collect footnotes in a list
+                if 'footnotes' not in section['content']['table']:
+                    section['content']['table']['footnotes'] = []
+                section['content']['table']['footnotes'].append(content_value)
+            elif content_type == 'table_postamble':
+                section['content']['table']['postamble'] = content_value
+    
+    # Now generate standardized_title for sections that have titles and mapping
+    if mapping_levels:
+        for section_id, section_data in sections.items():
+            if section_data['title'] and section_data['level'] >= 0:
+                # Get the title text and normalize it
+                title_text = section_data['title'].lower().strip()
+                
+                # Build regex tuples from mapping_levels
+                regex_tuples = [
+                    (pattern_dict["regex"], pattern_dict["name"], hierarchy_level)
+                    for hierarchy_level, patterns in mapping_levels.items()
+                    for pattern_dict in patterns
+                ]
+                
+                # Try to match against patterns
+                for regex, header_class, hierarchy_level in regex_tuples:
+                    match = re.match(regex, title_text)
+                    if match:
+                        # Generate standardized_title same way as in determine_levels
+                        match_groups = match.groups()
+                        if len(match_groups) > 0:
+                            string = ''.join([str(x) for x in match_groups if x is not None])
+                            standardized_title = f'{header_class}{string}'
+                        else:
+                            standardized_title = f'{header_class}'
+                        
+                        # Store it in content
+                        section_data['content']['standardized_title'] = standardized_title
+                        break
+    
+    # Build hierarchy based on levels
+    # Group sections by level to establish parent-child relationships
+    levels_map = {}
+    for section_id, section_data in sections.items():
+        level = section_data['level']
+        if level not in levels_map:
+            levels_map[level] = []
+        levels_map[level].append(section_id)
+    
+    # Build the nested structure
+    result = {'document': {}}
+    
+    # Process level 0 (top-level sections)
+    if 0 in levels_map:
+        for section_id in levels_map[0]:
+            section_dict = _build_section_dict(sections[section_id])
+            
+            # Find and add children recursively
+            children = _find_children(section_id, sections, tuples_list)
+            if children:
+                section_dict['contents'] = children
+            
+            result['document'][section_id] = section_dict
+    
+    return result
+
+
+def _build_section_dict(section_data):
+    """
+    Helper to build a section dictionary in the correct order:
+    title -> standardized_title (if exists) -> class -> other content -> contents
+    """
+    section_dict = {}
+    
+    # Add fields in specific order
+    if 'title' in section_data['content']:
+        section_dict['title'] = section_data['content']['title']
+    
+    if 'standardized_title' in section_data['content']:
+        section_dict['standardized_title'] = section_data['content']['standardized_title']
+    
+    if section_data['class'] is not None:
+        section_dict['class'] = section_data['class']
+    
+    # Add remaining content fields (text, textsmall, table, image)
+    for key in ['text', 'textsmall', 'table', 'image']:
+        if key in section_data['content']:
+            section_dict[key] = section_data['content'][key]
+    
+    return section_dict
+
+
+def _find_children(parent_id, sections, tuples_list):
+    """
+    Helper function to find all children of a given section.
+    Children are sections that appear after the parent in the tuples list
+    and have a higher level, until we hit another section at the same or lower level.
+    """
+    parent_level = sections[parent_id]['level']
+    children = {}
+    
+    # Find the position of the last tuple for this parent
+    parent_end_idx = -1
+    for idx, tuple_data in enumerate(tuples_list):
+        sec_id = tuple_data[0]
+        if sec_id == parent_id:
+            parent_end_idx = idx
+    
+    # Look for potential children after this parent
+    next_section_id = None
+    for idx in range(parent_end_idx + 1, len(tuples_list)):
+        tuple_data = tuples_list[idx]
+        sec_id = tuple_data[0]
+        level = tuple_data[3]
+        
+        # If we hit a section at same or lower level, stop
+        if level <= parent_level:
+            break
+        
+        # If this is a direct child (one level deeper)
+        if level == parent_level + 1 and sec_id != next_section_id:
+            next_section_id = sec_id
+            child_dict = _build_section_dict(sections[sec_id])
+            
+            # Recursively find grandchildren
+            grandchildren = _find_children(sec_id, sections, tuples_list)
+            if grandchildren:
+                child_dict['contents'] = grandchildren
+            
+            children[sec_id] = child_dict
+    
+    return children
 def escape_markdown(text):
     """Escape markdown special characters in text."""
     if not isinstance(text, str):

@@ -404,11 +404,7 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
                 elif 'table' in instruction:
                     current_section['contents'][idx] = {
                         'table': {
-                            'title':None, 
-                            'data': instruction['table'],
-                            'preamble': None,
-                            'footnotes': [],
-                            'postamble': None
+                            'data': instruction['table']
                         }
                     }
     
@@ -431,7 +427,7 @@ def convert_instructions_to_dict(instructions_list, mapping_dict=None):
      
             if "inherit_section_title" in table_postprocessing_rules.get("bool", []):
                 inherit_section_titles(document['contents'])
-
+    
     # Create final result with metadata
     result = {
         'metadata': {

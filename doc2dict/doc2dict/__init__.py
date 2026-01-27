@@ -10,7 +10,7 @@ from .html.html2dict import html2dict
 
 from .pdf.pdf2dict import pdf2dict
 
-from .utils.utils import get_title
-from .utils.format_dict import unnest_dict, flatten_dict
+from .utils.utils import get_title, get_title_from_dict, get_title_from_tuples
+from .utils.format_dict import unnest_dict, flatten_dict, convert_data_tuples_to_dict,convert_dict_to_data_tuples
 
 from .mapping_dicts.standard_config import STANDARD_CONFIG

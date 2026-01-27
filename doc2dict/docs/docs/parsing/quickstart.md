@@ -1,45 +1,12 @@
-# doc2dict
-
-Convert HTML, XML, and PDFs into dictionaries.
-
-* [Documentation](https://john-friedman.github.io/doc2dict/)
-
-Note that `doc2dict` is in an early stage. The goal is to create a fast, generalized, algorithmic parser that can be easily tweaked depending on the document.
-
-`doc2dict` supports the [datamule](https://github.com/john-friedman/datamule-python) project.
-
-> Update 1/11/26: Made rules much more modular. Performance will be worse. Will fix performance later. Future target performance is ~10k pages / second on a decent laptop single threaded (html).
-
-## Parsers
-
-1. HTML Parser
-2. PDF Parser - very early stage, currently only supports some pdf types.
-3. XML Parser - please use Martin Blech's excellent xmltodict. doc2dict's xml2dict is currently a mess.
-
-## Installation
+# Installation
 
 ```bash
 pip install doc2dict
 ```
 
-## HTML
+## Parsing
 
-### Examples
-
-Parsed HTML in Dictionary Form:
-[example](example_output/html/dict.json)
-
-Dictionary Form converted to HTML for easy visualiztion:
-[example](example_output/html/document_visualization.html)
-
-Table with preamble and postamble
-![example](example_output/html/tableambles.png)
-
-Table with footnotes and preamble
-![example](example_output/html/tablefootnotes.png)
-
-### Quickstart
-
+### HTML
 ```python
 from doc2dict import html2dict, visualize_dict
 
@@ -56,11 +23,43 @@ dct = html2dict(content)
 visualize_dict(dct)
 ```
 
-### Mapping Dicts
+### TXT
+```python
+from doc2dict import txt2dict, visualize_dict
 
-Mapping dictionaries are rules that you pass into the parser to tweak its functionality. You can view existing mapping dicts [here](doc2dict/doc2dict/mapping_dicts/).
+# Load your html file
+with open('apple_10k_2024.text','r') as f:
+    content = f.read()
 
-The below mapping dict tells the parser that "item" header should appear in the nesting of "part" headers. Also there are a bunch of other rules that should be kept by default. You may want to tweak Footnote regex.
+# Parse wihout a mapping dict
+dct = txt2dict(content,mapping_dict=None)
+# Parse using the standard mapping dict
+dct = txt2dict(content)
+
+# Visualize Parsing
+visualize_dict(dct)
+```
+
+### PDF
+```python
+from doc2dict import pdf2dict, visualize_dict
+
+# Load your html file
+with open('apple_10k_2024.pdf','rb') as f:
+    content = f.read()
+
+# Parse with no mapping dict
+dct = pdf2dict(content,mapping_dict=None)
+
+# Visualize Parsing
+visualize_dict(dct)
+```
+
+## Mapping Dicts
+
+Mapping dictionaries are rules that you pass into the parser to tweak its functionality.
+
+The below mapping dict tells the parser that "item" header should appear in the nesting of "part" headers. Also there are a bunch of other rules that should be kept by default.
 
 ```python
 tenk_mapping_dict = {
@@ -113,7 +112,7 @@ tenk_mapping_dict = {
 }
 ```
 
-### Debugging
+## Debugging
 
 ```python
 from doc2dict import *
@@ -145,35 +144,52 @@ Based on my personal (potato) laptop:
 * About 500 pages per second single threaded.
 * Parses the 57 page Apple 10-K in 160 milliseconds.
 
-## PDF
+### Target Speed
+I think I can get to ~40,000 pages per second in the near future for html, with proper threading. Would need:
+- rust rewrite
+- reducing waste in function calls (I've bloated the package by adding features, it used to iterate in one read over the DOM)
 
-The pdf parser is in a very early stage. It does not always handle encoding issues and the resulting hierarchies can be quite odd.
 
-I've released this because it may be useful to you, and as a proof of concept that fast pdf to dictionary parsing is possible. I plan to develop this further when presented with an interesting use case.
+## Converting to other formats
 
-### Quickstart
+Experimental.
 
-```python
-from doc2dict import pdf2dict, visualize_dict
+### convert_dict_to_data_tuples
 
-# Load your html file
-with open('apple_10k_2024.pdf','rb') as f:
-    content = f.read()
+Converts the dictionary representation into a flat format. Some information is lost. I am using this to store tbs of SEC filings data in parquet format. Roughly 120x smaller than original html.
 
-# Parse 
-dct = pdf2dict(content,mapping_dict=None)
-
-# Visualize Parsing
-visualize_dict(dct)
+```
+convert_dict_to_data_tuples(dct['document'])
+# returns ('section_id', 'content_type', 'content_value', 'level', 'class')
 ```
 
-### Benchmarks
+### convert_data_tuples_to_dict
 
-* About 200 pages per second single threaded.
+Converts the flat representation into dictionary format. Can apply a mapping dict. This allows you tweak data after it has been processed. This is useful, but tired. So will wait to explain further.
 
-### Other Functions:
-- flatten_dict(dct, format='markdown') or flatten_dict(dct, format='text')
-- unnest_dict(dct) - returns dict in form (id,type,content,level)
+```
+convert_data_tuples_to_dict(tuples_list, mapping_dict=None)
+```
 
-# TODO
-- add github workflow to run parser on examples after each push.
+### get_title_from_dict
+
+Returns a section in dict.
+```
+get_title_from_dict(dct, title=None, title_regex=None, title_class=None)
+```
+
+### get_title_from_tuples
+
+Returns a section in tuples.
+```
+get_title_from_tuples(tuples_list, title=None, title_regex=None, title_class=None)
+```
+
+Example
+```
+item1a_tuples = get_title_from_tuples(
+    doc.data_tuples,
+    title_regex=r'item 1a',
+    title_class='item'
+)
+```

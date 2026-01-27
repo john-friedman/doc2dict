@@ -785,7 +785,7 @@ def inherit_section_titles(obj):
             if len(tables) == 1:
                 key, table_item = tables[0]
                 # Only add title if it doesn't already have one
-                if table_item['table']['title'] is None:
+                if table_item['table'].get('title') is None:
                     table_item['table']['title'] = section_title
             
             # Recurse into contents to handle nested sections
@@ -799,3 +799,4 @@ def inherit_section_titles(obj):
     elif isinstance(obj, list):
         for item in obj:
             inherit_section_titles(item)
+
