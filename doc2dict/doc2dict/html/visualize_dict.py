@@ -312,18 +312,14 @@ def process_table(content, html):
         html.append('</div>')
     
     # Process preamble if present (AFTER title)
-    if 'preamble' in content and content['preamble'] is not None:  # ADD: and content['preamble'] is not None
+    if 'preamble' in content and content['preamble'] is not None:
         preamble_class = 'table-preamble'
         if has_title:
             preamble_class += ' table-preamble-with-title'
         html.append(f'<div class="{preamble_class}">')
-        for preamble_item in content['preamble']:
-            if 'text' in preamble_item:
-                html.append(f'<p class="preamble-item">{preamble_item["text"]}</p>')
-            elif 'textsmall' in preamble_item:
-                html.append(f'<p class="preamble-item textsmall">{preamble_item["textsmall"]}</p>')
+        html.append(f'<p class="preamble-item">{content["preamble"]}</p>')
         html.append('</div>')
-    
+        
     # Render the table
     table_data = content['data']
     
@@ -356,23 +352,17 @@ def process_table(content, html):
     html.append('</table>')
     
     # Process footnotes if present (AFTER table)
-    if 'footnotes' in content and content['footnotes'] is not None:  # ADD: and content['footnotes'] is not None
-        html.append('<div class="table-footnotes">')
-        for footnote in content['footnotes']:
-            if 'text' in footnote:
-                html.append(f'<p class="footnote"><b>{footnote["footnote_id"]}</b> {footnote["text"]}</p>')
-            elif 'textsmall' in footnote:
-                html.append(f'<p class="footnote textsmall"><b>{footnote["footnote_id"]}</b> {footnote["textsmall"]}</p>')
-        html.append('</div>')
+    if 'footnotes' in content and content['footnotes']:
+            html.append('<div class="table-footnotes">')
+            for footnote in content['footnotes']:
+                # footnote is [id, text] format
+                html.append(f'<p class="footnote"><b>{footnote[0]}</b> {footnote[1]}</p>')
+            html.append('</div>')
     
     # Process postamble if present (AFTER footnotes)
-    if 'postamble' in content and content['postamble'] is not None:  # ADD: and content['postamble'] is not None
+    if 'postamble' in content and content['postamble'] is not None:
         html.append('<div class="table-postamble">')
-        for postamble_item in content['postamble']:
-            if 'text' in postamble_item:
-                html.append(f'<p class="postamble-item">{postamble_item["text"]}</p>')
-            elif 'textsmall' in postamble_item:
-                html.append(f'<p class="postamble-item textsmall">{postamble_item["textsmall"]}</p>')
+        html.append(f'<p class="postamble-item">{content["postamble"]}</p>')
         html.append('</div>')
     
     # Close table wrapper

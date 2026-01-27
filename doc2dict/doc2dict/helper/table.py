@@ -412,11 +412,8 @@ def extract_footnotes_from_table(table_data, regex_pattern):
         else:
             footnote_text = second_cell
         
-        # Create footnote entry
-        footnotes.append({
-            'text': footnote_text.strip(),
-            'footnote_id': footnote_id
-        })
+        # Create footnote as [id, text] pair
+        footnotes.append([footnote_id, footnote_text.strip()])
     
     return footnotes
 
@@ -435,7 +432,7 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
     except ValueError:
         return  # Table key not found
     
-    # Collect footnotes from subsequent items
+    # Collect footnotes as list of [id, text] pairs
     footnotes = []
     keys_to_remove = []
     
@@ -465,7 +462,7 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
             table_footnotes = extract_footnotes_from_table(item['table']['data'], regex_pattern)
             
             if table_footnotes is not None:
-                # Valid footnote table - add all footnotes
+                # Valid footnote table - add all footnotes (already in [id, text] format)
                 footnotes.extend(table_footnotes)
                 keys_to_remove.append(key)
                 matched = True
@@ -482,11 +479,8 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
                 footnote_id = match.group(1)
                 text_without_id = text_content.strip()[len(match.group(0)):]
                 
-                # Initialize footnote entry
-                current_footnote = {
-                    content_type: text_without_id.strip(),
-                    'footnote_id': footnote_id
-                }
+                # Build footnote text (start with text after ID)
+                footnote_text = text_without_id.strip()
                 keys_to_remove.append(key)
                 
                 # Look ahead for continuation text
@@ -501,14 +495,11 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
                         break
                     
                     next_text = None
-                    next_type = None
                     
                     if 'text' in next_item:
                         next_text = next_item['text']
-                        next_type = 'text'
                     elif 'textsmall' in next_item:
                         next_text = next_item['textsmall']
-                        next_type = 'textsmall'
                     
                     if next_text is not None:
                         # Check if this is a new footnote
@@ -518,7 +509,7 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
                             break
                         else:
                             # This is continuation text, concatenate it
-                            current_footnote[content_type] += ' ' + next_text.strip()
+                            footnote_text += ' ' + next_text.strip()
                             keys_to_remove.append(next_key)
                             lookahead_count += 1
                             j += 1
@@ -526,7 +517,8 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
                         # Not a text item, stop looking ahead
                         break
                 
-                footnotes.append(current_footnote)
+                # Add as [id, text] pair
+                footnotes.append([footnote_id, footnote_text])
                 matched = True
                 # Skip past the items we just processed
                 i = j
@@ -547,7 +539,7 @@ def collect_table_footnotes(parent_contents, table_key, regex_pattern, check_nex
             del parent_contents[key]
 
         return keys_to_remove
-    
+       
 def apply_table_annotations(obj, rules, parent=None, parent_key=None):
     if isinstance(obj, dict):
         # Check if this dict contains a table
@@ -581,9 +573,10 @@ def apply_table_annotations(obj, rules, parent=None, parent_key=None):
         for item in obj:
             apply_table_annotations(item, rules, None, None)
 
+
 def collect_table_preamble(parent_contents, table_key, preamble_config):
     """
-    Collect content that comes before a table and move it into the table's preamble array.
+    Collect content that comes before a table and move it into the table's preamble string.
     
     Args:
         parent_contents: The contents dictionary containing the table
@@ -610,12 +603,12 @@ def collect_table_preamble(parent_contents, table_key, preamble_config):
     except ValueError:
         return  # Table key not found
     
-    # Collect preamble from previous items (backwards)
-    preamble = []
+    # Collect preamble text parts
+    preamble_parts = []
     keys_to_remove = []
     
     for i in range(table_index - 1, -1, -1):  # Walk backwards
-        if len(preamble) >= num_lines:
+        if len(preamble_parts) >= num_lines:
             break
             
         key = sorted_keys[i]
@@ -624,10 +617,10 @@ def collect_table_preamble(parent_contents, table_key, preamble_config):
         # Only collect text and textsmall items
         if isinstance(item, dict):
             if 'text' in item:
-                preamble.insert(0, {'text': item['text']})  # Insert at front to maintain order
+                preamble_parts.insert(0, item['text'])  # Insert at front to maintain order
                 keys_to_remove.append(key)
             elif 'textsmall' in item:
-                preamble.insert(0, {'textsmall': item['textsmall']})
+                preamble_parts.insert(0, item['textsmall'])
                 keys_to_remove.append(key)
             else:
                 # Hit non-text content (table, image, section), stop
@@ -636,9 +629,9 @@ def collect_table_preamble(parent_contents, table_key, preamble_config):
             # Hit non-dict item, stop
             break
     
-    # Add preamble to the table if any were collected
-    if preamble:
-        parent_contents[table_key]['table']['preamble'] = preamble
+    # Join preamble parts into a single string and add to table
+    if preamble_parts:
+        parent_contents[table_key]['table']['preamble'] = ' '.join(preamble_parts)
         
         # Remove the preamble items from parent_contents
         for key in keys_to_remove:
@@ -647,7 +640,7 @@ def collect_table_preamble(parent_contents, table_key, preamble_config):
 
 def collect_table_postamble(parent_contents, table_key, postamble_config, footnote_keys):
     """
-    Collect content that comes after a table's footnotes and move it into the table's postamble array.
+    Collect content that comes after a table's footnotes and move it into the table's postamble string.
     
     Args:
         parent_contents: The contents dictionary containing the table
@@ -683,12 +676,12 @@ def collect_table_postamble(parent_contents, table_key, postamble_config, footno
         if footnote_indices:
             start_index = max(footnote_indices) + 1
     
-    # Collect postamble from subsequent items
-    postamble = []
+    # Collect postamble text parts
+    postamble_parts = []
     keys_to_remove = []
     
     for i in range(start_index, len(sorted_keys)):
-        if len(postamble) >= num_lines:
+        if len(postamble_parts) >= num_lines:
             break
             
         key = sorted_keys[i]
@@ -697,10 +690,10 @@ def collect_table_postamble(parent_contents, table_key, postamble_config, footno
         # Only collect text and textsmall items
         if isinstance(item, dict):
             if 'text' in item:
-                postamble.append({'text': item['text']})
+                postamble_parts.append(item['text'])
                 keys_to_remove.append(key)
             elif 'textsmall' in item:
-                postamble.append({'textsmall': item['textsmall']})
+                postamble_parts.append(item['textsmall'])
                 keys_to_remove.append(key)
             else:
                 # Hit non-text content (table, image, section), stop
@@ -709,9 +702,9 @@ def collect_table_postamble(parent_contents, table_key, postamble_config, footno
             # Hit non-dict item, stop
             break
     
-    # Add postamble to the table if any were collected
-    if postamble:
-        parent_contents[table_key]['table']['postamble'] = postamble
+    # Join postamble parts into a single string and add to table
+    if postamble_parts:
+        parent_contents[table_key]['table']['postamble'] = ' '.join(postamble_parts)
         
         # Remove the postamble items from parent_contents
         for key in keys_to_remove:
