@@ -71,46 +71,36 @@ def convert_dict_to_data_tuples(dct):
         if not isinstance(content, dict):
             return
         
-        # Get the class if it exists
+        # Get the class and standardized_title if they exist
         content_class = content.get('class', None)
+        standardized_title = content.get('standardized_title', None)
             
         # Process title, text, textsmall directly
         for key in ['title', 'text', 'textsmall']:
             if key in content:
-                result.append((current_id, key, content[key], level, content_class))
+                result.append((current_id, key, content[key], level, content_class, standardized_title))
         
         # Process table - flatten all components into separate tuples
         if 'table' in content:
             table_dict = content['table']
-            
-            # Handle both old format (raw list) and new format (dict with 'data')
-            if isinstance(table_dict, dict):
 
-                if 'title' in table_dict and table_dict['title'] is not None:
-                    result.append((current_id, 'table_title', table_dict['title'], level, content_class))
-                
-                if 'preamble' in table_dict and table_dict['preamble'] is not None:
-                    result.append((current_id, 'table_preamble', table_dict['preamble'], level, content_class))
-                
-                # Main table data - always include if present
-                if 'data' in table_dict:
-                    result.append((current_id, 'table_data', table_dict['data'], level, content_class))
-                
-                # Footnotes - only add if list is not empty
-                if 'footnotes' in table_dict:
-                    footnotes = table_dict['footnotes']
-                    if 'footnotes' in table_dict and table_dict['footnotes']:
-                        result.append((current_id, 'table_footnotes', table_dict['footnotes'], level, content_class))
-                    elif not isinstance(footnotes, list) and footnotes is not None:
-                        # Single footnote as string (non-list)
-                        result.append((current_id, 'table_footnote', footnotes, level, content_class))
-                
-                # Postamble - only add if not None
-                if 'postamble' in table_dict and table_dict['postamble'] is not None:
-                    result.append((current_id, 'table_postamble', table_dict['postamble'], level, content_class))
-            else:
-                # Old format - just the raw list, now using 'table_data' for consistency
-                result.append((current_id, 'table_data', table_dict, level, content_class))
+            if 'title' in table_dict and table_dict['title'] is not None:
+                result.append((current_id, 'table_title', table_dict['title'], level, content_class, standardized_title))
+            
+            if 'preamble' in table_dict and table_dict['preamble'] is not None:
+                result.append((current_id, 'table_preamble', table_dict['preamble'], level, content_class, standardized_title))
+            
+            # Main table data - always include if present
+            if 'data' in table_dict:
+                result.append((current_id, 'table_data', table_dict['data'], level, content_class, standardized_title))
+            
+            # Footnotes - only add if list is not empty
+            if 'footnotes' in table_dict and table_dict['footnotes']:
+                result.append((current_id, 'table_footnotes', table_dict['footnotes'], level, content_class, standardized_title))
+            
+            # Postamble - only add if not None
+            if 'postamble' in table_dict and table_dict['postamble'] is not None:
+                result.append((current_id, 'table_postamble', table_dict['postamble'], level, content_class, standardized_title))
         
         # Process contents recursively in numeric order
         contents = content.get('contents', {})
@@ -129,7 +119,6 @@ def convert_dict_to_data_tuples(dct):
     
     return result
 
-
 # Backward compatibility alias
 unnest_dict = convert_dict_to_data_tuples
 
@@ -139,7 +128,7 @@ def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
     Convert a flat list of tuples back into a nested dictionary structure.
     
     Args:
-        tuples_list: List of tuples in format (section_id, content_type, content_value, level, class)
+        tuples_list: List of tuples in format (section_id, content_type, content_value, level, class, standardized_title)
         mapping_dict: Optional mapping dictionary with 'levels' key containing regex patterns
     
     Returns:
@@ -147,9 +136,6 @@ def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
     """
     if not tuples_list:
         return {'document': {}}
-    
-    # Extract mapping_levels if provided
-    mapping_levels = mapping_dict.get("levels", None) if mapping_dict else None
     
     # Build a tree structure to track sections and their hierarchy
     sections = {}
@@ -160,6 +146,7 @@ def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
         content_value = tuple_data[2]
         level = tuple_data[3]
         content_class = tuple_data[4] if len(tuple_data) > 4 else None
+        standardized_title = tuple_data[5] if len(tuple_data) > 5 else None
         
         # Initialize section if it doesn't exist
         if section_id not in sections:
@@ -167,16 +154,15 @@ def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
                 'level': level,
                 'content': {},
                 'class': content_class,
-                'title': None,  # Store title for standardization
+                'standardized_title': standardized_title,
                 'children': []
             }
         
         section = sections[section_id]
         
-        # Capture title for later standardization
+        # Process content types
         if content_type == 'title':
             section['content']['title'] = content_value
-            section['title'] = content_value  # Store for standardization logic
         elif content_type == 'text':
             section['content']['text'] = content_value
         elif content_type == 'textsmall':
@@ -192,43 +178,10 @@ def convert_data_tuples_to_dict(tuples_list, mapping_dict=None):
                 section['content']['table']['preamble'] = content_value
             elif content_type == 'table_data':
                 section['content']['table']['data'] = content_value
-            elif content_type == 'table_footnote':
-                # Collect footnotes in a list
-                if 'footnotes' not in section['content']['table']:
-                    section['content']['table']['footnotes'] = []
-                section['content']['table']['footnotes'].append(content_value)
+            elif content_type == 'table_footnotes':
+                section['content']['table']['footnotes'] = content_value
             elif content_type == 'table_postamble':
                 section['content']['table']['postamble'] = content_value
-    
-    # Now generate standardized_title for sections that have titles and mapping
-    if mapping_levels:
-        for section_id, section_data in sections.items():
-            if section_data['title'] and section_data['level'] >= 0:
-                # Get the title text and normalize it
-                title_text = section_data['title'].lower().strip()
-                
-                # Build regex tuples from mapping_levels
-                regex_tuples = [
-                    (pattern_dict["regex"], pattern_dict["name"], hierarchy_level)
-                    for hierarchy_level, patterns in mapping_levels.items()
-                    for pattern_dict in patterns
-                ]
-                
-                # Try to match against patterns
-                for regex, header_class, hierarchy_level in regex_tuples:
-                    match = re.match(regex, title_text)
-                    if match:
-                        # Generate standardized_title same way as in determine_levels
-                        match_groups = match.groups()
-                        if len(match_groups) > 0:
-                            string = ''.join([str(x) for x in match_groups if x is not None])
-                            standardized_title = f'{header_class}{string}'
-                        else:
-                            standardized_title = f'{header_class}'
-                        
-                        # Store it in content
-                        section_data['content']['standardized_title'] = standardized_title
-                        break
     
     # Build hierarchy based on levels
     # Group sections by level to establish parent-child relationships
@@ -268,8 +221,8 @@ def _build_section_dict(section_data):
     if 'title' in section_data['content']:
         section_dict['title'] = section_data['content']['title']
     
-    if 'standardized_title' in section_data['content']:
-        section_dict['standardized_title'] = section_data['content']['standardized_title']
+    if section_data['standardized_title'] is not None:
+        section_dict['standardized_title'] = section_data['standardized_title']
     
     if section_data['class'] is not None:
         section_dict['class'] = section_data['class']
@@ -405,3 +358,17 @@ def flatten_dict(dct=None, format='markdown', tuples_list=None):
         return '\n'.join(results)
     else:
         raise ValueError(f'Format not found: {format}')
+    
+def convert_dict_to_columnar(dct):
+    tuples_list = convert_dict_to_data_tuples(dct)
+    return [
+        {
+            'id': t[0],
+            'type': t[1],
+            'content': t[2],
+            'level': t[3],
+            'class': t[4],
+            'standardized_title': t[5]
+        }
+        for t in tuples_list
+    ]

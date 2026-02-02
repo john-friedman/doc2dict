@@ -84,7 +84,8 @@ def get_title_from_tuples(tuples_list, title=None, title_regex=None, title_class
     matching_sections = []  # List of (index, level)
     
     for idx, tup in enumerate(tuples_list):
-        section_id, tuple_type, content, level, class_val = tup
+        section_id, tuple_type, content, level = tup[0], tup[1], tup[2], tup[3]
+        class_val = tup[4] if len(tup) > 4 else None
         
         # Only look at title tuples for matching
         if tuple_type != 'title':

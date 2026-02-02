@@ -27,6 +27,9 @@ def get_text(text_page,obj):
     # Only convert the number of characters actually copied
     text = buffer.raw[:chars_copied*2].decode('utf-16le', errors='ignore')
 
+    # band aid fix for special char maps
+    text = text.encode('ascii', 'ignore').decode('ascii')
+
     # remove buffer
     text = text.strip('\x00')
     return text
