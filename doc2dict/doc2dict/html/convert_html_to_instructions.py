@@ -1,4 +1,6 @@
 from ..utils.strings import check_string_style
+from functools import lru_cache
+
 # params 
 tag_groups = {
 "bold": ["b", "strong"],
@@ -62,7 +64,7 @@ def walk(node):
 
     yield ("end",node)
 
-
+@lru_cache(maxsize=10000)
 def style_to_dict(style_string):
     result = {}
     if not style_string:
@@ -153,6 +155,8 @@ def get_style(node):
     increments = []
     stacks = []
     style = node.attributes.get('style', '')
+    if not style:  # Skip if no style
+        return [], []
     style_dict = style_to_dict(style)
 
     # Parse font shorthand if present
@@ -289,7 +293,7 @@ def parse_css_value(value_str):
     
     return value, unit
 
-
+@lru_cache(maxsize=10000)
 def normalize_to_px(value_str, font_context=None):
     """Convert any CSS measurement to pixels based on context"""
     if not value_str:
