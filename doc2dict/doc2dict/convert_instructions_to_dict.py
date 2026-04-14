@@ -7,6 +7,27 @@ __version__ = version("doc2dict")
 
 LIKELY_HEADER_ATTRIBUTES = ['bold', 'italic', 'underline', 'text-center', 'all_caps', 'fake_table','proper_case']
 
+# Visual-prominence weights used when ranking predicted-header attribute
+# combinations into hierarchy levels. Higher score → more prominent → lower
+# level number (closer to root). Centred text and ALL-CAPS are the two
+# strongest section-break signals in SEC filings; `proper_case` typically
+# marks a subsection inside a centred/uppercase section header.
+HEADER_ATTRIBUTE_WEIGHTS = {
+    'text-center': 2,
+    'all_caps': 2,
+    'bold': 1,
+    'underline': 1,
+    'fake_table': 1,
+    'italic': 0,
+    'proper_case': -1,
+}
+
+
+def _score_attributes(attrs):
+    if not attrs:
+        return 0
+    return sum(HEADER_ATTRIBUTE_WEIGHTS.get(k, 0) for k, v in attrs.items() if v)
+
 
 def remove_empty_contents(obj):
     """Recursively remove empty contents dictionaries"""
@@ -96,63 +117,68 @@ def determine_predicted_header_levels(levels):
     """
     Assigns hierarchy levels to predicted headers based on their attributes,
     maintaining consistency within each section defined by known headers.
-    
+
+    Within a section, attribute combinations are ranked by a weighted
+    visual-prominence score (see HEADER_ATTRIBUTE_WEIGHTS) rather than by
+    order of first appearance. This correctly nests a Title-Case / left-
+    aligned subsection under a preceding ALL-CAPS / centred parent even
+    when the subsection appears in the document BEFORE any other sibling
+    of the parent would disambiguate them.
+
     Args:
         levels: List of dictionaries containing level, class, and attributes
-        
+
     Returns:
-        List of tuples in the format (level, class)
+        List of tuples in the format (level, class, standardized_title)
     """
-    # Find the base level for predicted headers
     predicted_headers = [l for l in levels if l['class'] == 'predicted header']
     if not predicted_headers:
         return [(level['level'], level['class'], level.get('standardized_title','')) for level in levels]
-    
+
     base_level = min(h['level'] for h in predicted_headers)
-    
-    # Create a copy of levels that we'll modify
+
     updated_levels = levels.copy()
-    
-    # Track the last known header level
+
+    # Track the last known header level (from regex-mapped headers).
     current_section_level = -1
-    
-    # Dictionary to map attribute combinations to levels within the current section
-    # Format: {attribute_key: assigned_level}
-    attr_level_map = {}
-    
-    # Helper function to create a key from attributes dictionary
+
+    # Per-section state: {attr_key: {"score": int, "level": int}}.
+    # `level` is re-derived every time a new combination appears, by ranking
+    # combinations within the section by descending score.
+    attr_state = {}
+
     def attr_to_key(attrs):
         if not attrs:
             return "no_attributes"
-        # Sort keys to ensure consistent mapping regardless of order
         return "_".join(sorted([k for k, v in attrs.items() if v]))
-    
-    # Process each item
-    for i, item in enumerate(updated_levels):
-        # When we hit a known header, reset our attribute mapping
+
+    def reassign_levels():
+        ranked = sorted(attr_state.items(), key=lambda kv: -kv[1]['score'])
+        for rank, (_, v) in enumerate(ranked):
+            v['level'] = base_level + rank
+
+    for item in updated_levels:
         if item['class'] != 'predicted header' and item['class'] not in ['text', 'textsmall']:
             if item['level'] <= current_section_level:
-                # We've entered a new section at same or higher level, reset mappings
-                attr_level_map = {}
+                attr_state = {}
             current_section_level = item['level']
             continue
-        
-        # Skip non-header items
+
         if item['class'] != 'predicted header':
             continue
-        
-        # Create a key for this item's attributes
-        attr_key = attr_to_key(item.get('attributes', {}))
-        
-        # If we haven't seen this attribute combination in this section,
-        # assign it the next available level
-        if attr_key not in attr_level_map:
-            attr_level_map[attr_key] = base_level + len(attr_level_map)
-        
-        # Assign the level based on the mapping
-        item['level'] = attr_level_map[attr_key]
-    
-    # Return in the required format
+
+        attrs = item.get('attributes', {})
+        attr_key = attr_to_key(attrs)
+
+        if attr_key not in attr_state:
+            attr_state[attr_key] = {
+                'score': _score_attributes(attrs),
+                'level': None,
+            }
+            reassign_levels()
+
+        item['level'] = attr_state[attr_key]['level']
+
     return [(level['level'], level['class'], level.get('standardized_title','')) for level in updated_levels]
 # AI GENERATED CODE BC I WANT TO PUSH TO PROD #
 
