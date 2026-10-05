@@ -1,8 +1,7 @@
 Metadata-Version: 2.4
 Name: doc2dict
-Version: 0.2.6
-Requires-Python: >=3.8
-Requires-Dist: selectolax
+Version: 0.7.2
+Requires-Dist: selectolax==0.4.9
 Requires-Dist: xmltodict
+Requires-Dist: pypdfium2
 Dynamic: requires-dist
-Dynamic: requires-python
