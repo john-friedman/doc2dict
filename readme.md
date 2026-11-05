@@ -1,5 +1,7 @@
 # doc2dict
 
+> Note: doc2struct, a faster document parser has been released: https://github.com/john-friedman/doc2struct.
+
 Convert HTML, XML, and PDFs into dictionaries.
 
 * [Documentation](https://john-friedman.github.io/doc2dict/)
